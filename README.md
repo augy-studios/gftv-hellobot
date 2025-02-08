@@ -1,2 +1,2 @@
 # gftv-hellobot
-Global Furry Television Communities' Hello Bot
+Global Furry Television Communities' HelloBot
