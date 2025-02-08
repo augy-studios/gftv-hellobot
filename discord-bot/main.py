@@ -19,7 +19,7 @@ bot = commands.AutoShardedBot(command_prefix="!", intents=intents)
 # Function to update the activity
 async def update_activity():
     num_guilds = len(bot.guilds)
-    activity = discord.Activity(type=discord.ActivityType.watching, name=f"over {num_guilds} server(s) & {bot.shard_count} shard(s)")
+    activity = discord.Activity(type=discord.ActivityType.watching, name=f"over GFTV communities ({bot.shard_count} shards)")
     await bot.change_presence(activity=activity)
 
 # Load cogs

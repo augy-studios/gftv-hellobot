@@ -36,7 +36,10 @@ class Fun(commands.Cog):
     @app_commands.command(name="8ball", description="Ask the magic 8-ball any question.")
     async def eight_ball(self, interaction: discord.Interaction, question: str):
         response = random.choice(self.responses)
-        await interaction.response.send_message(f"🎱 {response}")
+        embed = discord.Embed(title="🎱 Magic 8ball", color=discord.Color(random.randint(0, 0xFFFFFF)))
+        embed.add_field(name="Question", value=question, inline=False)
+        embed.add_field(name="Response", value=response, inline=False)
+        await interaction.response.send_message(embed=embed)
         await log_action(self.bot, interaction)
 
 async def setup(bot):
