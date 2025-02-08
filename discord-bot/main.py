@@ -27,6 +27,7 @@ async def load_cogs():
     await bot.load_extension("bot.commands.general")
     await bot.load_extension("bot.commands.moderation")
     await bot.load_extension("bot.commands.info")
+    await bot.load_extension("bot.commands.fun")
 
 # Register slash commands
 @bot.event
