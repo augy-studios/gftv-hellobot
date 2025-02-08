@@ -14,6 +14,7 @@ def set_bot_commands():
         {"command": "start", "description": "Start the bot"},
         {"command": "help", "description": "Show help information"},
         {"command": "ping", "description": "Check bot latency"},
+        {"command": "8ball", "description": "Get a random answer to a question"},
         {"command": "dm", "description": "Send a private message to another user (Owner only)"},
         {"command": "broadcast", "description": "Send a message to all users who interacted with the bot (Owner only)"}
     ]

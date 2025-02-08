@@ -1,4 +1,5 @@
 import time
+import random
 from .config import BOT_OWNER_ID
 
 async def handle_command(command: str, event, client):
@@ -11,6 +12,8 @@ async def handle_command(command: str, event, client):
         await command_help(event, client)
     elif command == "ping":
         await command_ping(event, client)
+    elif command == "8ball":
+        await command_8ball(event, client)
     elif command == "dm":
         await command_dm(event, client)
     elif command == "broadcast":
@@ -20,22 +23,33 @@ async def handle_command(command: str, event, client):
 
 async def command_start(event, client):
     """
-    Example /start command.
+    /start command.
     """
     await event.reply("Hello! I am HelloBot. Type /help to see what I can do.")
 
 async def command_help(event, client):
     """
-    Example /help command.
+    /help command.
+    Sends the list of commands. Extra commands shown to the bot owner.
     """
-    help_text = (
-        "Available Commands:\n"
-        "/start - Greet the user.\n"
-        "/help - Show this help message.\n"
-        "/ping - Check the bot's latency.\n"
-        "/dm <user_id/username> <message> - Send a private message to another user (Owner only).\n"
-        "/broadcast <message> - Send a message to all users who interacted with the bot (Owner only).\n"
-    )
+    if event.sender_id == BOT_OWNER_ID:
+        help_text = (
+            "Available Commands:\n"
+            "/start - Greet the user.\n"
+            "/help - Show this help message.\n"
+            "/ping - Check the bot's latency.\n"
+            "/8ball <question> - Get a random answer to a question.\n"
+            "/dm <user_id/username> <message> - Send a private message to another user (Owner only).\n"
+            "/broadcast <message> - Send a message to all users who interacted with the bot (Owner only).\n"
+        )
+    else:
+        help_text = (
+            "Available Commands:\n"
+            "/start - Greet the user.\n"
+            "/help - Show this help message.\n"
+            "/ping - Check the bot's latency.\n"
+            "/8ball <question> - Get a random answer to a question.\n"
+        )
     await event.reply(help_text)
 
 async def command_ping(event, client):
@@ -48,6 +62,38 @@ async def command_ping(event, client):
     
     latency_ms = (end_time - start_time) * 1000
     await message.edit(f"Pong! Latency: {latency_ms:.2f} ms")
+
+async def command_8ball(event, client):
+    """
+    /8ball <question>
+    Responds with a random answer to the given question.
+    """
+    responses = [
+        "It is certain.",
+        "Without a doubt.",
+        "Yes, definitely.",
+        "You may rely on it.",
+        "Most likely.",
+        "Outlook good.",
+        "Yes.",
+        "Signs point to yes.",
+        "Reply hazy, try again.",
+        "Ask again later.",
+        "Better not tell you now.",
+        "Cannot predict now.",
+        "Don't count on it.",
+        "My reply is no.",
+        "My sources say no.",
+        "Outlook not so good.",
+        "Very doubtful."
+    ]
+
+    question = event.raw_text[6:].strip()  # Get the question part after "/8ball "
+    if not question:
+        await event.reply("Please ask a question. Example: /8ball Will I be lucky today?")
+    else:
+        response = random.choice(responses)
+        await event.reply(f"🎱 {response}")
 
 async def command_dm(event, client):
     """
