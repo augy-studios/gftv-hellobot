@@ -22,7 +22,7 @@ async def command_start(event, client):
     """
     Example /start command.
     """
-    await event.reply("Hello! I am NewYearTrain Bot. Type /help to see what I can do.")
+    await event.reply("Hello! I am HelloBot. Type /help to see what I can do.")
 
 async def command_help(event, client):
     """

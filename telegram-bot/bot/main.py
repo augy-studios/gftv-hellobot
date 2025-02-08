@@ -29,7 +29,7 @@ def set_bot_commands():
 if __name__ == "__main__":
     set_bot_commands()
 
-class NewYearTrainBot:
+class HelloBot:
     def __init__(self, api_id, api_hash, bot_token, log_channel_id):
         self.api_id = api_id
         self.api_hash = api_hash
@@ -37,7 +37,7 @@ class NewYearTrainBot:
         self.log_channel_id = log_channel_id
         
         # Create the client using the bot token
-        self.client = TelegramClient("NewYearTrainBotSession", self.api_id, self.api_hash).start(bot_token=self.bot_token)
+        self.client = TelegramClient("HelloBotSession", self.api_id, self.api_hash).start(bot_token=self.bot_token)
     
     def run(self):
         # Register event handler for new messages
@@ -56,7 +56,7 @@ class NewYearTrainBot:
                 command = message_text.split()[0][1:].lower()
                 await handle_command(command, event, self.client)
         
-        print("NewYearTrain Bot is now running...")
+        print("HelloBot is now running...")
         self.client.run_until_disconnected()
 
     async def store_user_id(self, user_id):
@@ -75,5 +75,5 @@ class NewYearTrainBot:
                 print(f"Added user {user_id} to the broadcast list.")
 
 if __name__ == "__main__":
-    bot = NewYearTrainBot(API_ID, API_HASH, BOT_TOKEN, LOG_CHANNEL_ID)
+    bot = HelloBot(API_ID, API_HASH, BOT_TOKEN, LOG_CHANNEL_ID)
     bot.run()
