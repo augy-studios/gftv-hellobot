@@ -23,7 +23,7 @@ ENV/
 env.bak/
 venv.bak/
 token.txt
-config.py
+# config.py
 
 *.env
 __pycache__/
