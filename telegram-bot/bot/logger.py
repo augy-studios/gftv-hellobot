@@ -6,6 +6,14 @@ async def log_event(event: events.NewMessage.Event, client: TelegramClient, log_
     Logs the details of an incoming message or command to the specified log channel,
     including the bot's reply if provided.
     """
+
+    # Determine the event type and extract details accordingly
+    if isinstance(event, events.NewMessage.Event):
+        message_text = event.raw_text
+    elif isinstance(event, events.CallbackQuery.Event):
+        message_text = f"Button clicked: {event.data.decode('utf-8')}"
+    else:
+        message_text = "Unknown event type"
     
     # Basic info from the event
     sender = await event.get_sender()

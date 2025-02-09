@@ -10,7 +10,6 @@ async def command_botinfo(event, client):
     /botinfo
     Displays general bot information.
     """
-
     await log_event(event, client, LOG_CHANNEL_ID)
 
     bot_entity = await client.get_me()
@@ -41,11 +40,40 @@ async def command_botinfo(event, client):
     else:
         await event.reply(info_text)
 
+async def handle_botinfo_callback(event, client):
+    """
+    Handles button interactions from the botinfo command.
+    """
+    action = event.data.decode("utf-8")
+
+    if action == "list_users":
+        response = await get_list("users.txt", "No known users.")
+    elif action == "list_channels":
+        response = await get_list("channels.txt", "No channels found.")
+    elif action == "list_groups":
+        response = await get_list("groups.txt", "No groups found.")
+    else:
+        response = "Invalid action."
+
+    await event.answer()
+    await event.edit(response)
+    await log_event(event, client, LOG_CHANNEL_ID, bot_reply=response)
+
+async def get_list(file_name, empty_message):
+    """
+    Reads a file and returns its contents as a formatted list.
+    """
+    try:
+        with open(file_name, "r") as f:
+            lines = [line.strip() for line in f if line.strip()]
+            return "\n".join(lines) if lines else empty_message
+    except FileNotFoundError:
+        return empty_message
+
 async def count_lines(file_name):
     """
     Count the number of lines in a file.
     """
-
     try:
         with open(file_name, "r") as f:
             return sum(1 for _ in f)

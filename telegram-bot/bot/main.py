@@ -7,7 +7,7 @@ import requests
 
 # Import commands from the cogs
 from .cogs.fun import command_8ball, command_coin, command_randnum, command_roll, handle_coin_guess
-from .cogs.info import command_botinfo
+from .cogs.info import command_botinfo, handle_botinfo_callback
 from .cogs.general import command_start, command_help, command_ping
 from .cogs.botowner import command_dm, command_broadcast
 from .cogs.moderation import command_ban, command_unban
@@ -79,8 +79,13 @@ class HelloBot:
         # Register the callback query handler for inline buttons
         @self.client.on(events.CallbackQuery)
         async def callback_handler(event):
-            # Only handle coin-related guesses
-            if event.data.decode("utf-8").startswith("guess_"):
+            action = event.data.decode("utf-8")
+
+            # Handle botinfo buttons
+            if action in ["list_users", "list_channels", "list_groups"]:
+                await handle_botinfo_callback(event, self.client)
+            # Handle coin-related guesses
+            elif action.startswith("guess_"):
                 await handle_coin_guess(event, self.client)
 
         print("HelloBot is now running...")
