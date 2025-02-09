@@ -14,15 +14,16 @@ class General(commands.Cog):
         await interaction.response.send_message(f"Pong! 🏓 Latency: {latency}ms")
         await log_action(self.bot, interaction)
     
-    @app_commands.command(name="help", description="Display a list of available commands categorized by their cog.")
+    @app_commands.command(name="help", description="Display a list of available commands categorized by their category.")
     async def help_command(self, interaction: discord.Interaction):
         embed = discord.Embed(title="Help - Available Commands", color=discord.Color(random.randint(0, 0xFFFFFF)))
-        embed.set_footer(text="Use / followed by the command name to execute it.")
+        embed.description = "Use / followed by the command name to interact with the bot. Click on a command to execute it."
+        embed.set_footer(text="Made with ❤️ by GFTV Intl © 2025 All Rights Sniffed • https://globalfurry.tv/")
 
         # Organize commands by category (cog)
         cog_commands = {}
         for cog_name, cog in self.bot.cogs.items():
-            commands_list = [f"/{command.name} - {command.description}" for command in cog.get_app_commands()]
+            commands_list = [f"**/{command.name}** - {command.description}" for command in cog.get_app_commands()]
             if commands_list:
                 cog_commands[cog_name] = commands_list
 

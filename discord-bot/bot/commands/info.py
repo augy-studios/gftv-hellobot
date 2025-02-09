@@ -43,8 +43,8 @@ class Info(commands.Cog):
         await interaction.response.send_message(embed=embed)
         await log_action(self.bot, interaction)
 
-    @app_commands.command(name="guildinfo", description="Get guild information.")
-    async def guildinfo(self, interaction: discord.Interaction):
+    @app_commands.command(name="serverinfo", description="Get server information.")
+    async def serverinfo(self, interaction: discord.Interaction):
         guild = interaction.guild
         embed = discord.Embed(title="Guild Info", color=discord.Color(random.randint(0, 0xFFFFFF)))
         embed.add_field(name="Guild Name", value=guild.name)
