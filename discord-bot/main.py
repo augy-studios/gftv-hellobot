@@ -3,10 +3,10 @@ from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 from core.logger import setup_error_handling
+from .config import DISCORD_TOKEN
 
 # Load token from token.env
-load_dotenv("token.env")
-TOKEN = os.getenv("DISCORD_TOKEN")
+TOKEN = DISCORD_TOKEN
 
 if not TOKEN:
     raise ValueError("Missing DISCORD_TOKEN in token.env")
