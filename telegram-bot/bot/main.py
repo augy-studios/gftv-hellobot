@@ -6,7 +6,7 @@ from .logger import log_event
 import requests
 
 # Import commands from the cogs
-from .cogs.fun import command_8ball, command_coinflip, command_randnum
+from .cogs.fun import command_8ball, command_coinflip, command_randnum, command_roll
 from .cogs.info import command_botinfo
 from .cogs.general import command_start, command_help, command_ping
 from .cogs.botowner import command_dm, command_broadcast
@@ -25,6 +25,7 @@ def set_bot_commands():
         {"command": "cf", "description": "Alias for /coinflip"},
         {"command": "randnum", "description": "Generate a random number between two values"},
         {"command": "rnum", "description": "Alias for /randnum"},
+        {"command": "roll", "description": "Roll a specified number of dice with a specified number of sides"},
         {"command": "ban", "description": "Ban a user"},
         {"command": "unban", "description": "Unban a user"},
         {"command": "dm", "description": "Send a private message to another user (Owner only)"},
@@ -60,6 +61,7 @@ class HelloBot:
                 "cf": command_coinflip,  # Alias
                 "randnum": command_randnum,
                 "rnum": command_randnum,  # Alias
+                "roll": command_roll,
                 "botinfo": command_botinfo,
                 "ban": command_ban,
                 "unban": command_unban,

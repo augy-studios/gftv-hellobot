@@ -83,3 +83,52 @@ async def command_randnum(event, client):
         bot_reply = "Please provide valid integers for the minimum and maximum values."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
+
+async def command_roll(event, client):
+    """
+    /roll <number_of_dices>d<number_of_sides>
+    Rolls specified number of dice with specified number of sides and returns the list of results and the total.
+    Examples:
+    - /roll d20 rolls one die with 20 sides.
+    - /roll 4d8 rolls 4 dice with 8 sides.
+    """
+
+    # Parse the input to extract the number of dice and sides
+    message = event.raw_text.strip().lower()
+    if len(message.split()) != 2 or "d" not in message:
+        bot_reply = "Invalid syntax. Use /roll <number_of_dices>d<number_of_sides>. Example: /roll 2d6 or /roll d20"
+        await event.reply(bot_reply)
+        await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
+        return
+
+    try:
+        # Extract the number of dice and sides using the "d" separator
+        dice_input = message.split()[1]
+        if dice_input.startswith("d"):
+            num_dice = 1
+            num_sides = int(dice_input[1:])
+        else:
+            num_dice, num_sides = map(int, dice_input.split("d"))
+
+        # Validate the inputs
+        if num_dice <= 0 or num_sides <= 0:
+            bot_reply = "Both the number of dice and the number of sides must be greater than 0."
+            await event.reply(bot_reply)
+            await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
+            return
+
+        # Roll the dice and calculate the results
+        results = [random.randint(1, num_sides) for _ in range(num_dice)]
+        total = sum(results)
+
+        # Build the reply message
+        reply = "\n".join([f"Dice {i + 1}: {result}" for i, result in enumerate(results)])
+        reply += f"\n**Total:** {total}"
+
+        await event.reply(reply)
+        await log_event(event, client, LOG_CHANNEL_ID, bot_reply=reply)
+
+    except ValueError:
+        bot_reply = "Invalid input. Please provide integers for the number of dice and sides."
+        await event.reply(bot_reply)
+        await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)

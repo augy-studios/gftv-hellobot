@@ -30,6 +30,7 @@ async def command_help(event, client):
         "/8ball <question> - Get a random answer to a question.\n"
         "/coinflip (or /cf) - Flip a coin.\n"
         "/randnum <min> <max> (or /rnum <min> <max>) - Generate a random number between two values.\n"
+        "/roll <num_dice> <num_sides> - Roll a specified number of dice with a specified number of sides.\n"
 
         "\n**Moderation Commands**\n"
         "/ban <user_id/username> - Ban a user.\n"
