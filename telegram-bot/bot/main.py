@@ -1,11 +1,16 @@
 import asyncio
 from telethon import TelegramClient, events
-
+import os
 from .config import API_ID, API_HASH, BOT_TOKEN, LOG_CHANNEL_ID
 from .logger import log_event
-from .commands import handle_command
-
 import requests
+
+# Import commands from the cogs
+from .cogs.fun import command_8ball
+from .cogs.info import command_botinfo
+from .cogs.general import command_start, command_help, command_ping
+from .cogs.botowner import command_dm, command_broadcast
+from .cogs.moderation import command_ban, command_unban
 
 def set_bot_commands():
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/setMyCommands"
@@ -14,7 +19,10 @@ def set_bot_commands():
         {"command": "start", "description": "Start the bot"},
         {"command": "help", "description": "Show help information"},
         {"command": "ping", "description": "Check bot latency"},
+        {"command": "botinfo", "description": "Get information about the bot"},
         {"command": "8ball", "description": "Get a random answer to a question"},
+        {"command": "ban", "description": "Ban a user"},
+        {"command": "unban", "description": "Unban a user"},
         {"command": "dm", "description": "Send a private message to another user (Owner only)"},
         {"command": "broadcast", "description": "Send a message to all users who interacted with the bot (Owner only)"}
     ]
@@ -32,48 +40,34 @@ if __name__ == "__main__":
 
 class HelloBot:
     def __init__(self, api_id, api_hash, bot_token, log_channel_id):
-        self.api_id = api_id
-        self.api_hash = api_hash
-        self.bot_token = bot_token
+        self.client = TelegramClient("HelloBotSession", api_id, api_hash).start(bot_token=bot_token)
         self.log_channel_id = log_channel_id
-        
-        # Create the client using the bot token
-        self.client = TelegramClient("HelloBotSession", self.api_id, self.api_hash).start(bot_token=self.bot_token)
-    
+            
     def run(self):
-        # Register event handler for new messages
         @self.client.on(events.NewMessage)
         async def message_handler(event):
-            # 1) Store the user's ID if not already recorded
-            await self.store_user_id(event.sender_id)
-            
-            # 2) Log the event
-            await log_event(event, self.client, self.log_channel_id)
-            
-            # 3) Check if it's a command (starts with "/")
-            message_text = event.raw_text
-            if message_text.startswith("/"):
-                # Grab the command (strip out the "/" and any arguments)
-                command = message_text.split()[0][1:].lower()
-                await handle_command(command, event, self.client)
+            # Mapping of commands to their handlers
+            commands = {
+                "start": command_start,
+                "help": command_help,
+                "ping": command_ping,
+                "8ball": command_8ball,
+                "botinfo": command_botinfo,
+                "ban": command_ban,
+                "unban": command_unban,
+                "dm": command_dm,
+                "broadcast": command_broadcast,
+            }
+
+            command = event.raw_text.split()[0][1:].lower()
+            handler = commands.get(command)
+            if handler:
+                await handler(event, self.client)
+            else:
+                await event.reply("Unknown command.")
         
         print("HelloBot is now running...")
         self.client.run_until_disconnected()
-
-    async def store_user_id(self, user_id):
-        """
-        Store user ID in a file if it's not already there.
-        """
-        try:
-            with open("users.txt", "r") as f:
-                users = {int(line.strip()) for line in f}
-        except FileNotFoundError:
-            users = set()
-
-        if user_id not in users:
-            with open("users.txt", "a") as f:
-                f.write(f"{user_id}\n")
-                print(f"Added user {user_id} to the broadcast list.")
 
 if __name__ == "__main__":
     bot = HelloBot(API_ID, API_HASH, BOT_TOKEN, LOG_CHANNEL_ID)
