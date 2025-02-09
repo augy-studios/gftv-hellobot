@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import random
+import re
 from core.logger import log_action
 
 class Fun(commands.Cog):
@@ -57,6 +58,35 @@ class Fun(commands.Cog):
 
         result = random.randint(min_num, max_num)
         await interaction.response.send_message(f"🎲 Random number between {min_num} and {max_num}: **{result}**")
+        await log_action(self.bot, interaction)
+    
+    # /roll command to roll specified number of dice with specified sides
+    @app_commands.command(name="roll", description="Roll dice in the format XdY (e.g., /roll 4d8 or /roll d20).")
+    async def roll(self, interaction: discord.Interaction, dice: str):
+        match = re.fullmatch(r'(\d*)d(\d+)', dice.strip())
+        if not match:
+            await interaction.response.send_message("❌ Invalid format! Use XdY (e.g., 4d8 or d20).", ephemeral=True)
+            return
+
+        num_dice = int(match.group(1)) if match.group(1) else 1
+        num_sides = int(match.group(2))
+
+        if num_dice <= 0 or num_sides <= 0:
+            await interaction.response.send_message("❌ The number of dice and sides must be positive integers.", ephemeral=True)
+            return
+        
+        if num_dice > 100 or num_sides > 100:
+            await interaction.response.send_message("❌ The number of dice and sides must be 100 or less.", ephemeral=True)
+
+        # Roll the dice and calculate results
+        rolls = [random.randint(1, num_sides) for _ in range(num_dice)]
+        total = sum(rolls)
+
+        # Prepare response message
+        roll_results = "\n".join([f"Dice {i + 1}: {roll}" for i, roll in enumerate(rolls)])
+        response = f"{roll_results}\n**Total:** {total}"
+
+        await interaction.response.send_message(f"🎲 Rolling {num_dice}d{num_sides}:\n{response}")
         await log_action(self.bot, interaction)
 
 async def setup(bot):

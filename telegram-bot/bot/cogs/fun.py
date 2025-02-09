@@ -1,3 +1,4 @@
+import asyncio
 import random
 from ..config import LOG_CHANNEL_ID
 from ..logger import log_event
@@ -117,6 +118,12 @@ async def command_roll(event, client):
             await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
             return
 
+        if num_dice > 100 or num_sides > 100:
+            bot_reply = "The number of dice and sides must be less than or equal to 100."
+            await event.reply(bot_reply)
+            await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
+            return
+
         # Roll the dice and calculate the results
         results = [random.randint(1, num_sides) for _ in range(num_dice)]
         total = sum(results)
@@ -130,5 +137,13 @@ async def command_roll(event, client):
 
     except ValueError:
         bot_reply = "Invalid input. Please provide integers for the number of dice and sides."
+        await event.reply(bot_reply)
+        await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
+
+    try:
+        await asyncio.wait_for(command_roll(event, client), timeout=10.0)
+
+    except asyncio.TimeoutError:
+        bot_reply = "The roll command timed out. Please try again."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
