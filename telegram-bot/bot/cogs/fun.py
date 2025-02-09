@@ -1,5 +1,6 @@
 import asyncio
 import random
+from telethon import Button, client, events
 from ..config import LOG_CHANNEL_ID
 from ..logger import log_event
 
@@ -42,15 +43,34 @@ async def command_8ball(event, client):
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
 
-async def command_coinflip(event, client):
+async def command_coin(event, client):
     """
-    /coinflip or /cf
-    Returns HEADS or TAILS randomly.
+    /coin
+    Flips a coin with options for the user to select their guess using inline buttons.
     """
 
+    # Display the buttons for the user to select a guess
+    buttons = [
+        [Button.inline("HEADS", b"guess_heads"), Button.inline("TAILS", b"guess_tails")]
+    ]
+    bot_reply = "🪙 Flip a coin! Select your guess below."
+    await event.reply(bot_reply, buttons=buttons)
+    await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
+
+async def handle_coin_guess(event, client):
+    """
+    Handles the user's guess when they select an option using the inline buttons.
+    """
+    user_guess = event.data.decode("utf-8").split("_")[1].upper()
     result = random.choice(["HEADS", "TAILS"])
-    bot_reply = f"🪙 The coin landed on: **{result}**"
-    await event.reply(bot_reply)
+
+    if user_guess == result:
+        bot_reply = f"🪙 The coin landed on **{result}**. You guessed **{user_guess}**. 🎉 You win!"
+    else:
+        bot_reply = f"🪙 The coin landed on **{result}**. You guessed **{user_guess}**. 😞 You lose."
+
+    await event.answer("Coin flipped!", alert=False)
+    await event.edit(bot_reply)
     await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
 
 async def command_randnum(event, client):

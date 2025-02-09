@@ -6,7 +6,7 @@ from .logger import log_event
 import requests
 
 # Import commands from the cogs
-from .cogs.fun import command_8ball, command_coinflip, command_randnum, command_roll
+from .cogs.fun import command_8ball, command_coin, command_randnum, command_roll, handle_coin_guess
 from .cogs.info import command_botinfo
 from .cogs.general import command_start, command_help, command_ping
 from .cogs.botowner import command_dm, command_broadcast
@@ -21,8 +21,7 @@ def set_bot_commands():
         {"command": "ping", "description": "Check bot latency"},
         {"command": "botinfo", "description": "Get information about the bot"},
         {"command": "8ball", "description": "Get a random answer to a question"},
-        {"command": "coinflip", "description": "Flip a coin"},
-        {"command": "cf", "description": "Alias for /coinflip"},
+        {"command": "coin", "description": "Flip a coin"},
         {"command": "randnum", "description": "Generate a random number between two values"},
         {"command": "rnum", "description": "Alias for /randnum"},
         {"command": "roll", "description": "Roll a specified number of dice with a specified number of sides"},
@@ -57,8 +56,7 @@ class HelloBot:
                 "help": command_help,
                 "ping": command_ping,
                 "8ball": command_8ball,
-                "coinflip": command_coinflip,
-                "cf": command_coinflip,  # Alias
+                "coin": command_coin,
                 "randnum": command_randnum,
                 "rnum": command_randnum,  # Alias
                 "roll": command_roll,
@@ -74,9 +72,17 @@ class HelloBot:
             if handler:
                 await handler(event, self.client)
             else:
-                await log_event(event, self.client)
-                await event.reply("Unknown command.")
+                bot_reply = "Unknown command. Type /help to see the list of available commands."
+                await log_event(event, self.client, LOG_CHANNEL_ID, bot_reply=bot_reply)
+                await event.reply(bot_reply)
         
+        # Register the callback query handler for inline buttons
+        @self.client.on(events.CallbackQuery)
+        async def callback_handler(event):
+            # Only handle coin-related guesses
+            if event.data.decode("utf-8").startswith("guess_"):
+                await handle_coin_guess(event, self.client)
+
         print("HelloBot is now running...")
         self.client.run_until_disconnected()
 

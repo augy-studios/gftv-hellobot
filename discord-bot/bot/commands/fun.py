@@ -42,14 +42,12 @@ class Fun(commands.Cog):
         await interaction.response.send_message(embed=embed)
         await log_action(self.bot, interaction)
 
-    # /coinflip command with alias /cf
-    @app_commands.command(name="coinflip", description="Flip a coin and get HEADS or TAILS.")
-    async def coinflip(self, interaction: discord.Interaction):
+    @app_commands.command(name="coin", description="Flip a coin and get HEADS or TAILS.")
+    async def coin(self, interaction: discord.Interaction):
         result = random.choice(["HEADS", "TAILS"])
         await interaction.response.send_message(f"🪙 The coin landed on: **{result}**")
         await log_action(self.bot, interaction)
     
-    # /randnum command with alias /rnum
     @app_commands.command(name="randnum", description="Generate a random number between a given range.")
     async def randnum(self, interaction: discord.Interaction, min_num: int, max_num: int):
         if min_num > max_num:
@@ -60,7 +58,6 @@ class Fun(commands.Cog):
         await interaction.response.send_message(f"🎲 Random number between {min_num} and {max_num}: **{result}**")
         await log_action(self.bot, interaction)
     
-    # /roll command to roll specified number of dice with specified sides
     @app_commands.command(name="roll", description="Roll dice in the format XdY (e.g., /roll 4d8 or /roll d20).")
     async def roll(self, interaction: discord.Interaction, dice: str):
         match = re.fullmatch(r'(\d*)d(\d+)', dice.strip())
