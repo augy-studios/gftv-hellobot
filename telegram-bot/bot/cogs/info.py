@@ -1,6 +1,7 @@
 import sys
 from telethon import Button
 from ..config import BOT_OWNER_ID
+from ..logger import log_event
 
 # Info commands
 
@@ -9,6 +10,9 @@ async def command_botinfo(event, client):
     /botinfo
     Displays general bot information.
     """
+
+    await log_event(event, client)
+
     bot_entity = await client.get_me()
     python_version = sys.version.split()[0]
     library_used = "Telethon"
@@ -41,6 +45,7 @@ async def count_lines(file_name):
     """
     Count the number of lines in a file.
     """
+
     try:
         with open(file_name, "r") as f:
             return sum(1 for _ in f)

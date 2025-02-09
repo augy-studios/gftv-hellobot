@@ -2,12 +2,16 @@ from telethon.tl.functions.channels import EditBannedRequest
 from telethon.tl.types import ChatBannedRights
 from telethon.errors import ChatAdminRequiredError, UserIdInvalidError, ChatWriteForbiddenError
 import re
+from ..logger import log_event
 
 async def command_ban(event, client):
     """
     /ban <username|user_id> [reason]
     Bans a user from the group. The user executing this command must have admin permissions.
     """
+
+    await log_event(event, client)
+
     if not await check_admin_rights(event, client):
         await event.reply("You don't have permission to use this command.")
         return
@@ -47,6 +51,9 @@ async def command_unban(event, client):
     /unban <username|user_id>
     Unbans a user from the group. The user executing this command must have admin permissions.
     """
+
+    await log_event(event, client)
+
     if not await check_admin_rights(event, client):
         await event.reply("You don't have permission to use this command.")
         return
@@ -84,6 +91,9 @@ async def check_admin_rights(event, client):
     """
     Checks if the user executing the command has admin/moderator rights in the group.
     """
+
+    await log_event(event, client)
+    
     chat = await event.get_chat()
     sender = await event.get_sender()
 

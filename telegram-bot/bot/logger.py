@@ -1,9 +1,11 @@
 from telethon import events, TelegramClient
+from .config import LOG_CHANNEL_ID
 
-async def log_event(event: events.NewMessage.Event, client: TelegramClient, log_channel_id: int):
+async def log_event(event: events.NewMessage.Event, client: TelegramClient, log_channel_id: int = LOG_CHANNEL_ID):
     """
     Logs the details of an incoming message or command to the specified log channel.
     """
+    
     # Basic info from the event
     sender = await event.get_sender()
     sender_id = sender.id if sender else None

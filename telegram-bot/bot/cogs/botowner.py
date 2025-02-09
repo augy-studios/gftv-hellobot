@@ -1,10 +1,14 @@
 from ..config import BOT_OWNER_ID
+from ..logger import log_event
 
 async def command_dm(event, client):
     """
     /dm <user_id/username> <message>
     Sends a private message to a user. Restricted to the bot's owner.
     """
+
+    await log_event(event, client)
+
     if event.sender_id != BOT_OWNER_ID:
         await event.reply("You are not authorised to use this command.")
         return
@@ -29,6 +33,9 @@ async def command_broadcast(event, client):
     Sends a message to all users who have interacted with the bot.
     Restricted to the bot's owner.
     """
+
+    await log_event(event, client)
+    
     if event.sender_id != BOT_OWNER_ID:
         await event.reply("You are not authorised to use this command.")
         return
