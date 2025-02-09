@@ -31,6 +31,9 @@ async def command_help(event, client):
         "/coin - Flip a coin.\n"
         "/randnum <min> <max> (or /rnum <min> <max>) - Generate a random number between two values.\n"
         "/roll <num_dice> <num_sides> - Roll a specified number of dice with a specified number of sides.\n"
+        "/cat - You like kitties, don't you? This command shows you a random cat image.\n"
+        "/dog - You like puppies, don't you? This command shows you a random dog image.\n"
+        "/fox - Yip? This command shows you a random fluffy fox image.\n"
 
         "\n**Moderation Commands**\n"
         "/ban <user_id/username> - Ban a user.\n"

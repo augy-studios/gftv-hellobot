@@ -1,5 +1,6 @@
 import asyncio
 import random
+import requests
 from telethon import Button, client, events
 from ..config import LOG_CHANNEL_ID
 from ..logger import log_event
@@ -167,3 +168,51 @@ async def command_roll(event, client):
         bot_reply = "The roll command timed out. Please try again."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
+
+async def command_cat(event, client):
+    """
+    /cat
+    You like kitties, don't you? This command shows you a random cat image.
+    """
+    try:
+        response = requests.get("https://api.thecatapi.com/v1/images/search")
+        data = response.json()
+        image_url = data[0]['url']
+        bot_reply = f"🐱 Here's a random cat:\n{image_url}"
+    except Exception as e:
+        bot_reply = f"Failed to fetch a cat image. Error: {e}"
+    
+    await event.reply(bot_reply)
+    await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
+
+async def command_dog(event, client):
+    """
+    /dog
+    You like puppies, don't you? This command shows you a random dog image.
+    """
+    try:
+        response = requests.get("https://api.thedogapi.com/v1/images/search")
+        data = response.json()
+        image_url = data[0]['url']
+        bot_reply = f"🐶 Here's a random dog:\n{image_url}"
+    except Exception as e:
+        bot_reply = f"Failed to fetch a dog image. Error: {e}"
+    
+    await event.reply(bot_reply)
+    await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
+
+async def command_fox(event, client):
+    """
+    /fox
+    Yip? This command shows you a random fluffy fox image.
+    """
+    try:
+        response = requests.get("https://randomfox.ca/floof/")
+        data = response.json()
+        image_url = data['image']
+        bot_reply = f"🦊 Here’s a random fox:\n{image_url}"
+    except Exception as e:
+        bot_reply = f"Failed to fetch a fox image. Error: {e}"
+    
+    await event.reply(bot_reply)
+    await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)

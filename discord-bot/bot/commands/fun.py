@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import random
 import re
+import requests
 from core.logger import log_action
 
 class Fun(commands.Cog):
@@ -96,6 +97,34 @@ class Fun(commands.Cog):
         response = f"{roll_results}\n**Total:** {total}"
 
         await interaction.response.send_message(f"🎲 Rolling {num_dice}d{num_sides}:\n{response}")
+        await log_action(self.bot, interaction)
+
+    @app_commands.command(name="cat", description="You like kitties, don't you? This command shows you a random cat image.")
+    async def cat(self, interaction: discord.Interaction):
+        response = requests.get("https://api.thecatapi.com/v1/images/search").json()
+        image_url = response[0]["url"]
+        embed = discord.Embed(title="🐱 Meow!", color=discord.Color(random.randint(0, 0xFFFFFF)))
+        embed.set_image(url=image_url)
+        await interaction.response.send_message(embed=embed)
+        await log_action(self.bot, interaction)
+    
+    @app_commands.command(name="dog", description="You like puppies, don't you? This command shows you a random dog image.")
+    async def dog(self, interaction: discord.Interaction):
+        response = requests.get("https://api.thedogapi.com/v1/images/search").json()
+        image_url = response[0]["url"]
+        embed = discord.Embed(title="🐶 Woof!", color=discord.Color(random.randint(0, 0xFFFFFF)))
+        embed.set_image(url=image_url)
+        await interaction.response.send_message(embed=embed)
+        await log_action(self.bot, interaction)
+
+    @app_commands.command(name="fox", description="Yip? This command shows you a random fluffy fox image.")
+    async def fox(self, interaction: discord.Interaction):
+        response = requests.get("https://randomfox.ca/floof/").json()
+        image_url = response["image"]
+        embed = discord.Embed(title="🦊 Yip!", color=discord.Color(random.randint(0, 0xFFFFFF)))
+        embed.set_image(url=image_url)
+        await interaction.response.send_message(embed=embed)
+        await interaction.response.send_message(image_url)
         await log_action(self.bot, interaction)
 
 async def setup(bot):

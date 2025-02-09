@@ -6,7 +6,7 @@ from .logger import log_event
 import requests
 
 # Import commands from the cogs
-from .cogs.fun import command_8ball, command_coin, command_randnum, command_roll, handle_coin_guess
+from .cogs.fun import command_8ball, command_coin, command_randnum, command_roll, handle_coin_guess, command_cat, command_dog, command_fox
 from .cogs.info import command_botinfo, handle_botinfo_callback
 from .cogs.general import command_start, command_help, command_ping
 from .cogs.botowner import command_dm, command_broadcast
@@ -25,6 +25,9 @@ def set_bot_commands():
         {"command": "randnum", "description": "Generate a random number between two values"},
         {"command": "rnum", "description": "Alias for /randnum"},
         {"command": "roll", "description": "Roll a specified number of dice with a specified number of sides"},
+        {"command": "cat", "description": "You like kitties, don't you? This command shows you a random cat image."},
+        {"command": "dog", "description": "You like puppies, don't you? This command shows you a random dog image."},
+        {"command": "fox", "description": "Yip? This command shows you a random fluffy fox image."},
         {"command": "ban", "description": "Ban a user"},
         {"command": "unban", "description": "Unban a user"},
         {"command": "dm", "description": "Send a private message to another user (Owner only)"},
@@ -60,6 +63,9 @@ class HelloBot:
                 "randnum": command_randnum,
                 "rnum": command_randnum,  # Alias
                 "roll": command_roll,
+                "cat": command_cat,
+                "dog": command_dog,
+                "fox": command_fox,
                 "botinfo": command_botinfo,
                 "ban": command_ban,
                 "unban": command_unban,
