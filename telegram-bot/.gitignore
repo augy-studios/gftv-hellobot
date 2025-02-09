@@ -60,3 +60,5 @@ dist/
 *.session
 *.session-journal
 users.txt
+channels.txt
+groups.txt
