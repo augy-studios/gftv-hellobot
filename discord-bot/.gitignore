@@ -23,6 +23,7 @@ ENV/
 env.bak/
 venv.bak/
 token.txt
+users.txt
 # config.py
 
 *.env

@@ -1,15 +1,9 @@
 import os
-from dotenv import load_dotenv
 import discord
 from discord.ext import commands
 from core.logger import setup_error_handling
-from .config import DISCORD_TOKEN
-
-# Load token from token.env
-TOKEN = DISCORD_TOKEN
-
-if not TOKEN:
-    raise ValueError("Missing DISCORD_TOKEN in token.env")
+from config import DISCORD_TOKEN
+from user_utils import add_user_to_file
 
 # Define bot with AutoShardedBot
 intents = discord.Intents.default()
@@ -18,7 +12,6 @@ bot = commands.AutoShardedBot(command_prefix="!", intents=intents)
 
 # Function to update the activity
 async def update_activity():
-    num_guilds = len(bot.guilds)
     activity = discord.Activity(type=discord.ActivityType.watching, name=f"over GFTV communities ({bot.shard_count} shards)")
     await bot.change_presence(activity=activity)
 
@@ -28,6 +21,11 @@ async def load_cogs():
     await bot.load_extension("bot.commands.moderation")
     await bot.load_extension("bot.commands.info")
     await bot.load_extension("bot.commands.fun")
+
+# Event to handle user interactions and log their ID
+@bot.event
+async def on_interaction(interaction: discord.Interaction):
+    add_user_to_file(interaction.user.id)
 
 # Register slash commands
 @bot.event
@@ -51,4 +49,4 @@ async def on_guild_remove(guild):
 setup_error_handling(bot)
 
 # Run the bot
-bot.run(TOKEN)
+bot.run(DISCORD_TOKEN)
