@@ -1,4 +1,3 @@
-
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -48,7 +47,7 @@ class Fun(commands.Cog):
         result = random.choice(["HEADS", "TAILS"])
         await interaction.response.send_message(f"🪙 The coin landed on: **{result}**")
         await log_action(self.bot, interaction)
-
+    
     # /randnum command with alias /rnum
     @app_commands.command(name="randnum", description="Generate a random number between a given range.")
     async def randnum(self, interaction: discord.Interaction, min_num: int, max_num: int):
