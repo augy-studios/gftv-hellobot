@@ -42,10 +42,22 @@ class Fun(commands.Cog):
         await interaction.response.send_message(embed=embed)
         await log_action(self.bot, interaction)
 
-    @app_commands.command(name="coin", description="Flip a coin and get HEADS or TAILS.")
-    async def coin(self, interaction: discord.Interaction):
+    @app_commands.choices(guess=[
+        app_commands.Choice(name="HEADS", value="HEADS"),
+        app_commands.Choice(name="TAILS", value="TAILS")
+    ])
+    @app_commands.command(name="coin", description="Flip a coin and optionally guess the result.")
+    async def coin(self, interaction: discord.Interaction, guess: str = None):
         result = random.choice(["HEADS", "TAILS"])
-        await interaction.response.send_message(f"🪙 The coin landed on: **{result}**")
+        if guess:
+            if guess.upper() == result:
+                response = f"🪙 The coin landed on: **{result}**\n🎉 You guessed it right!"
+            else:
+                response = f"🪙 The coin landed on: **{result}**\n😞 You guessed **{guess}**, better luck next time!"
+        else:
+            response = f"🪙 The coin landed on: **{result}**"
+
+        await interaction.response.send_message(response)
         await log_action(self.bot, interaction)
     
     @app_commands.command(name="randnum", description="Generate a random number between a given range.")
