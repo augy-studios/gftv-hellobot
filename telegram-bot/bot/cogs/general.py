@@ -1,5 +1,5 @@
 import time
-from ..config import BOT_OWNER_ID
+from ..config import BOT_OWNER_ID, LOG_CHANNEL_ID
 from ..logger import log_event
 
 async def command_start(event, client):
@@ -7,9 +7,9 @@ async def command_start(event, client):
     /start command.
     """
 
-    await log_event(event, client)
-
-    await event.reply("Hello! I am HelloBot. Type /help to see what I can do.")
+    bot_reply = "Hello! I am HelloBot. Type /help to see what I can do."
+    await event.reply(bot_reply)
+    await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
 
 async def command_help(event, client):
     """
@@ -17,7 +17,7 @@ async def command_help(event, client):
     Sends the list of commands.
     """
 
-    await log_event(event, client)
+    await log_event(event, client, LOG_CHANNEL_ID)
 
     help_text = (
         "Available Commands:\n"
@@ -53,9 +53,9 @@ async def command_ping(event, client):
     /ping command to check latency (ping).
     """
 
-    await log_event(event, client)
-    
     start_time = time.time()
     message = await event.reply("Pong!")
     latency_ms = (time.time() - start_time) * 1000
-    await message.edit(f"Pong! Latency: {latency_ms:.2f} ms")
+    bot_reply = f"Pong! Latency: {latency_ms:.2f} ms"
+    await message.edit(bot_reply)
+    await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)

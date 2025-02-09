@@ -1,6 +1,6 @@
 import sys
 from telethon import Button
-from ..config import BOT_OWNER_ID
+from ..config import BOT_OWNER_ID, LOG_CHANNEL_ID
 from ..logger import log_event
 
 # Info commands
@@ -11,7 +11,7 @@ async def command_botinfo(event, client):
     Displays general bot information.
     """
 
-    await log_event(event, client)
+    await log_event(event, client, LOG_CHANNEL_ID)
 
     bot_entity = await client.get_me()
     python_version = sys.version.split()[0]

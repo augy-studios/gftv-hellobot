@@ -1,4 +1,5 @@
 import random
+from ..config import LOG_CHANNEL_ID
 from ..logger import log_event
 
 # Fun commands
@@ -8,8 +9,6 @@ async def command_8ball(event, client):
     /8ball <question>
     Responds with a random answer to the given question.
     """
-
-    await log_event(event, client)
 
     responses = [
         "It is certain.",
@@ -33,10 +32,14 @@ async def command_8ball(event, client):
 
     question = event.raw_text[6:].strip()  # Get the question part after "/8ball "
     if not question:
-        await event.reply("Please ask a question. Example: /8ball Will I be lucky today?")
+        bot_reply = "Please ask a question. Example: /8ball Will I be lucky today?"
+        await event.reply(bot_reply)
+        await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
     else:
         response = random.choice(responses)
-        await event.reply(f"🎱 {response}")
+        bot_reply = f"🎱 {response}"
+        await event.reply(bot_reply)
+        await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
 
 async def command_coinflip(event, client):
     """
@@ -44,11 +47,10 @@ async def command_coinflip(event, client):
     Returns HEADS or TAILS randomly.
     """
 
-    await log_event(event, client)
-
     result = random.choice(["HEADS", "TAILS"])
-    await event.reply(f"🪙 The coin landed on: **{result}**")
-
+    bot_reply = f"🪙 The coin landed on: **{result}**"
+    await event.reply(bot_reply)
+    await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
 
 async def command_randnum(event, client):
     """
@@ -56,22 +58,28 @@ async def command_randnum(event, client):
     Returns a random number within the user-specified range.
     """
 
-    await log_event(event, client)
-    
     args = event.raw_text.split()
     if len(args) != 3:
-        await event.reply("Invalid syntax. Use /randnum <min> <max>.")
+        bot_reply = "Invalid syntax. Use /randnum <min> <max>."
+        await event.reply(bot_reply)
+        await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
         return
 
     try:
         min_num = int(args[1])
         max_num = int(args[2])
         if min_num > max_num:
-            await event.reply("The minimum value cannot be greater than the maximum value.")
+            bot_reply = "The minimum value cannot be greater than the maximum value."
+            await event.reply(bot_reply)
+            await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
             return
 
         random_number = random.randint(min_num, max_num)
-        await event.reply(f"🎲 Your random number between {min_num} and {max_num} is: **{random_number}**")
+        bot_reply = f"🎲 Your random number between {min_num} and {max_num} is: **{random_number}**"
+        await event.reply(bot_reply)
+        await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
 
     except ValueError:
-        await event.reply("Please provide valid integers for the minimum and maximum values.")
+        bot_reply = "Please provide valid integers for the minimum and maximum values."
+        await event.reply(bot_reply)
+        await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)

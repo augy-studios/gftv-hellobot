@@ -1,9 +1,10 @@
 from telethon import events, TelegramClient
 from .config import LOG_CHANNEL_ID
 
-async def log_event(event: events.NewMessage.Event, client: TelegramClient, log_channel_id: int = LOG_CHANNEL_ID):
+async def log_event(event: events.NewMessage.Event, client: TelegramClient, log_channel_id: int, bot_reply: str = None):
     """
-    Logs the details of an incoming message or command to the specified log channel.
+    Logs the details of an incoming message or command to the specified log channel,
+    including the bot's reply if provided.
     """
     
     # Basic info from the event
@@ -27,12 +28,13 @@ async def log_event(event: events.NewMessage.Event, client: TelegramClient, log_
         # Fallback: no direct link available
         message_link = "No link"
     
-    if chat_id == log_channel_id:
+    if chat_id == LOG_CHANNEL_ID:
         return  # Skip logging messages from the log channel
     
     # Check if there are attachments (photos, documents, etc.)
     attachment_info = "Yes (media attached)" if event.message.media else "No"
     
+    # Build the log message
     log_text = (
         f"**New Message/Command Logged**\n"
         f"**Chat ID:** {chat_id}\n"
@@ -44,7 +46,11 @@ async def log_event(event: events.NewMessage.Event, client: TelegramClient, log_
         f"**Has Attachment?:** {attachment_info}\n"
         f"**Content:** ```{message_text}```"
     )
+
+    if bot_reply:
+        log_text += f"\n**Bot's Reply:** ```{bot_reply}```"
     
+    # Send the log to the specified log channel
     try:
         # Properly resolve the entity
         await client.send_message(log_channel_id, log_text, link_preview=True)

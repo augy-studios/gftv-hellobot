@@ -72,6 +72,7 @@ class HelloBot:
             if handler:
                 await handler(event, self.client)
             else:
+                await log_event(event, self.client)
                 await event.reply("Unknown command.")
         
         print("HelloBot is now running...")
