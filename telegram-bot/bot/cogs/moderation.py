@@ -47,11 +47,11 @@ async def command_ban(event, client):
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
     except ChatAdminRequiredError:
-        bot_reply = "You need to be an admin to execute this command."
+        bot_reply = "I need to be an admin to execute this command."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
     except ChatWriteForbiddenError:
-        bot_reply = "You cannot perform this action because you don't have permission to write in this chat."
+        bot_reply = "I cannot perform this action because I don't have permission to write in this chat."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
     except Exception as e:
@@ -100,11 +100,11 @@ async def command_unban(event, client):
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
     except ChatAdminRequiredError:
-        bot_reply = "You need to be an admin to execute this command."
+        bot_reply = "I need to be an admin to execute this command."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
     except ChatWriteForbiddenError:
-        bot_reply = "You cannot perform this action because you don't have permission to write in this chat."
+        bot_reply = "I cannot perform this action because I don't have permission to write in this chat."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
     except Exception as e:
