@@ -78,9 +78,7 @@ class HelloBot:
             if handler:
                 await handler(event, self.client)
             else:
-                bot_reply = "Unknown command. Type /help to see the list of available commands."
-                await log_event(event, self.client, LOG_CHANNEL_ID, bot_reply=bot_reply)
-                await event.reply(bot_reply)
+                await log_event(event, self.client, LOG_CHANNEL_ID, bot_reply=None)
         
         # Register the callback query handler for inline buttons
         @self.client.on(events.CallbackQuery)

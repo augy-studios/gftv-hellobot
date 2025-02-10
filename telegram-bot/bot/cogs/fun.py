@@ -1,7 +1,6 @@
-import asyncio
 import random
 import requests
-from telethon import Button, client, events
+from telethon import Button
 from ..config import LOG_CHANNEL_ID
 from ..logger import log_event
 
@@ -158,14 +157,6 @@ async def command_roll(event, client):
 
     except ValueError:
         bot_reply = "Invalid input. Please provide integers for the number of dice and sides."
-        await event.reply(bot_reply)
-        await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
-
-    try:
-        await asyncio.wait_for(command_roll(event, client), timeout=10.0)
-
-    except asyncio.TimeoutError:
-        bot_reply = "The roll command timed out. Please try again."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
 
