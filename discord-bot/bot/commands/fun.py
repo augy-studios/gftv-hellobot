@@ -31,7 +31,12 @@ class Fun(commands.Cog):
         "My reply is no.",
         "My sources say no.",
         "Outlook not so good.",
-        "Very doubtful."
+        "Very doubtful.",
+        "Never gonna give you up.",
+        "Never gonna give you up.",
+        "Never gonna give you up.",
+        "Never gonna give you up.",
+        "Never gonna give you up."
     ]
 
     @app_commands.command(name="8ball", description="Ask the magic 8-ball any question.")

@@ -29,7 +29,12 @@ async def command_8ball(event, client):
         "My reply is no.",
         "My sources say no.",
         "Outlook not so good.",
-        "Very doubtful."
+        "Very doubtful.",
+        "Never gonna give you up.",
+        "Never gonna give you up.",
+        "Never gonna give you up.",
+        "Never gonna give you up.",
+        "Never gonna give you up."
     ]
 
     question = event.raw_text[6:].strip()  # Get the question part after "/8ball "
