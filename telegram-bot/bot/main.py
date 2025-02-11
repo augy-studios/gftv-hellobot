@@ -41,18 +41,24 @@ def set_bot_commands():
     else:
         print(f"Failed to set commands: {response.text}")
 
-# Call the function to set commands when the bot starts
-if __name__ == "__main__":
-    set_bot_commands()
-
 class HelloBot:
     def __init__(self, api_id, api_hash, bot_token, log_channel_id):
         self.client = TelegramClient("HelloBotSession", api_id, api_hash).start(bot_token=bot_token)
         self.log_channel_id = log_channel_id
+        self.bot_username = None  # To store the bot's username dynamically
+
+    async def fetch_bot_username(self):
+        """Fetch and store the bot's username dynamically."""
+        me = await self.client.get_me()
+        self.bot_username = me.username.lower()
             
     def run(self):
         @self.client.on(events.NewMessage)
         async def message_handler(event):
+            # Ensure bot username is fetched before processing any messages
+            if not self.bot_username:
+                await self.fetch_bot_username()
+
             # Mapping of commands to their handlers
             commands = {
                 "start": command_start,
@@ -73,7 +79,15 @@ class HelloBot:
                 "broadcast": command_broadcast,
             }
 
-            command = event.raw_text.split()[0][1:].lower()
+            # Extract and clean the command
+            raw_command = event.raw_text.split()[0][1:].lower()
+            if "@" in raw_command:
+                command, mentioned_bot = raw_command.split("@", 1)
+                if mentioned_bot != self.bot_username:
+                    return  # Ignore commands meant for a different bot
+            else:
+                command = raw_command
+            # Get the handler for the command or log the event if no handler is found
             handler = commands.get(command)
             if handler:
                 await handler(event, self.client)
@@ -96,5 +110,6 @@ class HelloBot:
         self.client.run_until_disconnected()
 
 if __name__ == "__main__":
+    set_bot_commands()
     bot = HelloBot(API_ID, API_HASH, BOT_TOKEN, LOG_CHANNEL_ID)
     bot.run()
