@@ -8,13 +8,20 @@ from core.logger import log_action
 class General(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self.command_ids = {}  # Store command IDs dynamically
+
+    async def fetch_command_ids(self):
+        """Fetch and store command IDs after syncing."""
+        commands = await self.bot.tree.fetch_commands()
+        for cmd in commands:
+            self.command_ids[cmd.name] = cmd.id
 
     @app_commands.command(name="ping", description="Check the bot's latency.")
     async def ping(self, interaction: discord.Interaction):
         latency = round(self.bot.latency * 1000)
         await interaction.response.send_message(f"Pong! 🏓 Latency: {latency}ms")
         await log_action(self.bot, interaction)
-    
+
     @app_commands.command(name="help", description="Display a list of available commands categorized by their category.")
     async def help_command(self, interaction: discord.Interaction):
         embed = discord.Embed(title="Help - Available Commands", color=discord.Color.random())
@@ -24,7 +31,15 @@ class General(commands.Cog):
         # Organize commands by category (cog)
         cog_commands = {}
         for cog_name, cog in self.bot.cogs.items():
-            commands_list = [f"**/{command.name}** - {command.description}" for command in cog.get_app_commands()]
+            commands_list = []
+
+            for command in cog.get_app_commands():
+                command_id = self.command_ids.get(command.name)
+                if command_id:
+                    commands_list.append(f"**</{command.name}:{command_id}>** - {command.description}")
+                else:
+                    commands_list.append(f"**/{command.name}** - {command.description}")
+
             if commands_list:
                 cog_commands[cog_name] = commands_list
 
@@ -61,4 +76,6 @@ class General(commands.Cog):
         await log_action(self.bot, interaction)
 
 async def setup(bot):
-    await bot.add_cog(General(bot))
+    cog = General(bot)
+    await cog.fetch_command_ids()  # Fetch IDs before adding the cog
+    await bot.add_cog(cog)

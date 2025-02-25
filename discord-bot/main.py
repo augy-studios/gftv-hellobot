@@ -22,16 +22,25 @@ async def load_cogs():
     await bot.load_extension("bot.commands.info")
     await bot.load_extension("bot.commands.fun")
 
+# Function to fetch and display command IDs
+async def fetch_command_ids():
+    commands = await bot.tree.fetch_commands()
+    print("\n=== Registered Slash Commands ===")
+    for cmd in commands:
+        print(f"/{cmd.name} - ID: {cmd.id}")
+    print("================================\n")
+
 # Event to handle user interactions and log their ID
 @bot.event
 async def on_interaction(interaction: discord.Interaction):
     add_user_to_file(interaction.user.id)
 
-# Register slash commands
+# Register slash commands and fetch IDs
 @bot.event
 async def on_ready():
     await load_cogs()
     await bot.tree.sync()  # Sync commands with Discord
+    await fetch_command_ids()  # Fetch and display command IDs
     await update_activity()  # Update the status on startup
     print(f"Logged in as {bot.user} (ID: {bot.user.id}) with {bot.shard_count} shard(s)")
 
