@@ -1,5 +1,6 @@
 import discord
 import random
+import re
 from discord.ext import commands
 from discord import app_commands
 from core.logger import log_action
@@ -16,7 +17,7 @@ class General(commands.Cog):
     
     @app_commands.command(name="help", description="Display a list of available commands categorized by their category.")
     async def help_command(self, interaction: discord.Interaction):
-        embed = discord.Embed(title="Help - Available Commands", color=discord.Color(random.randint(0, 0xFFFFFF)))
+        embed = discord.Embed(title="Help - Available Commands", color=discord.Color.random())
         embed.description = "Use / followed by the command name to interact with the bot. Click on a command to execute it."
         embed.set_footer(text="Made with ❤️ by GFTV Intl © 2025 All Rights Sniffed • https://globalfurry.tv/")
 
@@ -32,6 +33,32 @@ class General(commands.Cog):
             embed.add_field(name=f"**{category} Commands**", value="\n".join(commands), inline=False)
 
         await interaction.response.send_message(embed=embed)
+
+    @app_commands.command(name="fix", description="Fixes Twitter, Instagram, and BlueSky links to bypass login walls.")
+    async def fix(self, interaction: discord.Interaction, url: str):
+        """Fixes known social media links to an alternative view."""
+        patterns = {
+            r"(https?://(?:www\.)?(?:twitter|x)\.com/+)": "https://fixupx.com/",
+            r"(https?://bsky\.app/profile/+)": "https://fxbsky.app/profile/",
+            r"(https?://www\.instagram\.com/(reel|post)/[\w\d_/]+)": "https://www.ddinstagram.com"
+        }
+
+        fixed_url = None
+
+        for pattern, fixup_base in patterns.items():
+            match = re.match(pattern, url)
+            if match:
+                if "instagram.com" in url:
+                    # Replace only the "www.instagram.com" part for Instagram
+                    fixed_url = url.replace("www.instagram.com", "www.ddinstagram.com")
+                else:
+                    fixed_url = url.replace(match.group(1), fixup_base)
+                break
+        if fixed_url:
+            await interaction.response.send_message(f"🔗 Here's your fixed link: {fixed_url}")
+        else:
+            await interaction.response.send_message("❌ This link doesn't have an eligible fixup.", ephemeral=True)
+        await log_action(self.bot, interaction)
 
 async def setup(bot):
     await bot.add_cog(General(bot))
