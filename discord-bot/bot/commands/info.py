@@ -38,6 +38,7 @@ class BotInfoView(ui.View):
             await interaction.response.send_message(f"No {item_type.lower()} found.", ephemeral=True)
             return
 
+        items = sorted(items, key=lambda x: x.lower())  # Sort items alphabetically
         view = PaginatedListView(self.bot, item_type, items)
         await interaction.response.send_message(content=f"```{view.pages[0]}```", ephemeral=True, view=view)
 
@@ -48,12 +49,12 @@ class BotInfoView(ui.View):
 
     @ui.button(label="List Channels", style=discord.ButtonStyle.success, custom_id="list_channels")
     async def list_channels(self, interaction: discord.Interaction, button: ui.Button):
-        channels = [f"{channel.name} ({channel.id})" for guild in self.bot.guilds for channel in guild.channels]
+        channels = sorted([f"{channel.name} ({channel.id})" for guild in self.bot.guilds for channel in guild.channels], key=lambda x: x.lower())
         await self.show_paginated_list(interaction, "Channels", channels)
 
     @ui.button(label="List Guilds", style=discord.ButtonStyle.danger, custom_id="list_guilds")
     async def list_guilds(self, interaction: discord.Interaction, button: ui.Button):
-        guilds = [f"{guild.name} ({guild.id})" for guild in self.bot.guilds]
+        guilds = sorted([f"{guild.name} ({guild.id})" for guild in self.bot.guilds], key=lambda x: x.lower())
         await self.show_paginated_list(interaction, "Guilds", guilds)
 
 class PaginatedListView(ui.View):
