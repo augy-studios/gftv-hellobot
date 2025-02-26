@@ -4,6 +4,7 @@ from discord import app_commands
 import random
 import re
 import requests
+import math
 from core.logger import log_action
 
 class Utility(commands.Cog):
@@ -18,6 +19,21 @@ class Utility(commands.Cog):
 
         result = random.randint(min_num, max_num)
         await interaction.response.send_message(f"🎲 Random number between {min_num} and {max_num}: **{result}**")
+        await log_action(self.bot, interaction)
+
+    @app_commands.command(name="math", description="Solve a math expression.")
+    async def math(self, interaction: discord.Interaction, expression: str):
+        """Evaluates a math expression safely."""
+        try:
+            # Allow only safe mathematical functions and numbers
+            allowed_names = {name: getattr(math, name) for name in dir(math) if not name.startswith("__")}
+            allowed_names.update({"abs": abs, "round": round})  # Add extra safe functions
+            
+            # Evaluate the expression safely
+            result = eval(expression, {"__builtins__": {}}, allowed_names)
+            await interaction.response.send_message(f"🧮 Result of `{expression}`: **{result}**")
+        except Exception:
+            await interaction.response.send_message("❌ Invalid mathematical expression.", ephemeral=True)
         await log_action(self.bot, interaction)
     
     @app_commands.command(name="roll", description="Roll dice in the format XdY (e.g., /roll 4d8 or /roll d20).")
