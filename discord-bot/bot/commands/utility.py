@@ -33,7 +33,10 @@ class Utility(commands.Cog):
             result = eval(expression, {"__builtins__": {}}, allowed_names)
             await interaction.response.send_message(f"🧮 Result of `{expression}`: **{result}**")
         except Exception:
-            await interaction.response.send_message("❌ Invalid mathematical expression.", ephemeral=True)
+            if expression == "0/0":
+                await interaction.response.send_message("🍪 Imagine that you have zero cookies and you split them evenly among zero friends.\nHow many cookies does each person get?\nYou see, it doesn't make sense. Cookie Monster is sad that there are no cookies, and you are sad that you have no friends.")
+            else:
+                await interaction.response.send_message("❌ Invalid mathematical expression.", ephemeral=True)
         await log_action(self.bot, interaction)
     
     @app_commands.command(name="roll", description="Roll dice in the format XdY (e.g., /roll 4d8 or /roll d20).")
