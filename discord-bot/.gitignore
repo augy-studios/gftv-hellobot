@@ -24,6 +24,8 @@ env.bak/
 venv.bak/
 token.txt
 users.txt
+cookies.txt
+*.m4a
 # config.py
 
 *.env
