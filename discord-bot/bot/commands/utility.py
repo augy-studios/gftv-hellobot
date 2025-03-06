@@ -3,10 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import random
 import re
-import requests
 import math
-from PIL import Image, ImageDraw
-import io
 import math
 from core.logger import log_action
 
