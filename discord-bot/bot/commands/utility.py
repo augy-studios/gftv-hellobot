@@ -97,5 +97,12 @@ class Utility(commands.Cog):
         await interaction.response.send_message(embed=embed)
         await log_action(self.bot, interaction)
 
+    @app_commands.command(name="say", description="Make the bot repeat what you say.")
+    async def say(self, interaction: discord.Interaction, message: str):
+        """Repeats what the user says without replying directly."""
+        await interaction.response.send_message("Processing...", delete_after=1)
+        await interaction.channel.send(message.replace("\\\\n", "\n"))
+        await log_action(self.bot, interaction)
+
 async def setup(bot):
     await bot.add_cog(Utility(bot))
