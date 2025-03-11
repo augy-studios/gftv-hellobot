@@ -111,6 +111,7 @@ class Info(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="userinfo", description="Get user information.")
+    @app_commands.describe(member="The user to get information about")
     async def userinfo(self, interaction: discord.Interaction, member: discord.Member):
         embed = discord.Embed(title="User Info", color=discord.Color.random())
         embed.add_field(name="Username", value=member.name, inline=False)
