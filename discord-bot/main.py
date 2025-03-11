@@ -15,7 +15,11 @@ bot = commands.AutoShardedBot(command_prefix="!", intents=intents)
 
 # Function to update the activity
 async def update_activity():
-    activity = discord.Activity(type=discord.ActivityType.watching, name=f"over GFTV communities ({bot.shard_count + random.randint(1,100)} shards)")
+    random1 = random.randint(1, 100)
+    random2 = random.randint(1, 100)
+    bignum = max(random1, random2)
+    smallnum = min(random1, random2)
+    activity = discord.Activity(type=discord.ActivityType.watching, name=f"over GFTV communities (Shard {bot.shard_count + smallnum}/{bot.shard_count + bignum})")
     await bot.change_presence(activity=activity)
 
 # Load cogs
@@ -27,6 +31,7 @@ async def load_cogs():
     await bot.load_extension("bot.commands.utility")
     await bot.load_extension("bot.commands.voice")
     await bot.load_extension("bot.commands.generative")
+    await bot.load_extension("bot.commands.profile")
 
 # Function to fetch and display command IDs
 async def fetch_command_ids():

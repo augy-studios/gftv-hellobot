@@ -23,7 +23,8 @@ class General(commands.Cog):
         await log_action(self.bot, interaction)
 
     @app_commands.command(name="help", description="Display a list of available commands categorized by their category.")
-    async def help_command(self, interaction: discord.Interaction):
+    @app_commands.describe(category="Choose a category to see its commands")
+    async def help_command(self, interaction: discord.Interaction, category: str = None):
         embed = discord.Embed(title="Help - Available Commands", color=discord.Color.random())
         embed.description = "Use / followed by the command name to interact with the bot. Click on a command to execute it."
         embed.set_footer(text="Made with ❤️ by GFTV Intl © 2025 All Rights Sniffed • https://globalfurry.tv/")
@@ -44,10 +45,22 @@ class General(commands.Cog):
                 cog_commands[cog_name] = commands_list
 
         # Add each category of commands to the embed
-        for category, commands in cog_commands.items():
-            embed.add_field(name=f"**{category} Commands**", value="\n".join(commands), inline=False)
+        if category:
+            if category in cog_commands:
+                embed.add_field(name=f"**{category} Commands**", value="\n".join(cog_commands[category]), inline=False)
+            else:
+                await interaction.response.send_message(f"❌ No commands found for category: {category}", ephemeral=True)
+                return
+        else:
+            for category, commands in cog_commands.items():
+                embed.add_field(name=f"**{category} Commands**", value="\n".join(commands), inline=False)
 
         await interaction.response.send_message(embed=embed)
+
+    @help_command.autocomplete("category")
+    async def help_command_autocomplete(self, interaction: discord.Interaction, current: str):
+        categories = [cog_name for cog_name in self.bot.cogs.keys()]
+        return [app_commands.Choice(name=category, value=category) for category in categories if current.lower() in category.lower()]
 
     @app_commands.command(name="fix", description="Fixes Twitter, Instagram, and BlueSky links to bypass login walls.")
     async def fix(self, interaction: discord.Interaction, url: str):
