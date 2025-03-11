@@ -40,6 +40,7 @@ class Fun(commands.Cog):
     ]
 
     @app_commands.command(name="8ball", description="Ask the magic 8-ball any question.")
+    @app_commands.describe(question="Ask the magic 8-ball any question.")
     async def eight_ball(self, interaction: discord.Interaction, question: str):
         response = random.choice(self.responses)
         embed = discord.Embed(title="🎱 Magic 8ball", color=discord.Color(random.randint(0, 0xFFFFFF)))
@@ -53,6 +54,7 @@ class Fun(commands.Cog):
         app_commands.Choice(name="TAILS", value="TAILS")
     ])
     @app_commands.command(name="coin", description="Flip a coin and optionally guess the result.")
+    @app_commands.describe(guess="Your guess (HEADS or TAILS)")
     async def coin(self, interaction: discord.Interaction, guess: str = None):
         result = random.choice(["HEADS", "TAILS"])
         if guess:
