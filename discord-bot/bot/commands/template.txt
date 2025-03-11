@@ -1,0 +1,23 @@
+import discord
+from discord.ext import commands
+from discord import app_commands
+import random
+import re
+import math
+import math
+from core.logger import log_action
+
+class Template(commands.Cog):
+    def __init__(self, bot):
+        self.bot = bot
+
+    @app_commands.command(name="say", description="Make the bot repeat what you say.")
+    @app_commands.describe(message="The message to repeat")
+    async def say(self, interaction: discord.Interaction, message: str):
+        """Repeats what the user says without replying directly."""
+        await interaction.response.send_message("Processing...", delete_after=1)
+        await interaction.followup.send(message.replace("\\\\n", "\n"))
+        await log_action(self.bot, interaction)
+
+async def setup(bot):
+    await bot.add_cog(Template(bot))
