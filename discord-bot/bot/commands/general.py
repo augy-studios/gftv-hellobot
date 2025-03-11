@@ -62,33 +62,6 @@ class General(commands.Cog):
         categories = [cog_name for cog_name in self.bot.cogs.keys()]
         return [app_commands.Choice(name=category, value=category) for category in categories if current.lower() in category.lower()]
 
-    @app_commands.command(name="fix", description="Fixes Twitter, Instagram, and BlueSky links to bypass login walls.")
-    @app_commands.describe(url="The social media link to fix")
-    async def fix(self, interaction: discord.Interaction, url: str):
-        """Fixes known social media links to an alternative view."""
-        patterns = {
-            r"(https?://(?:www\.)?(?:twitter|x)\.com/+)": "https://fixupx.com/",
-            r"(https?://bsky\.app/profile/+)": "https://fxbsky.app/profile/",
-            r"(https?://www\.instagram\.com/(reel|post)/[\w\d_/]+)": "https://www.ddinstagram.com"
-        }
-
-        fixed_url = None
-
-        for pattern, fixup_base in patterns.items():
-            match = re.match(pattern, url)
-            if match:
-                if "instagram.com" in url:
-                    # Replace only the "www.instagram.com" part for Instagram
-                    fixed_url = url.replace("www.instagram.com", "www.ddinstagram.com")
-                else:
-                    fixed_url = url.replace(match.group(1), fixup_base)
-                break
-        if fixed_url:
-            await interaction.response.send_message(f"🔗 Here's your fixed link: {fixed_url}")
-        else:
-            await interaction.response.send_message("❌ This link doesn't have an eligible fixup.", ephemeral=True)
-        await log_action(self.bot, interaction)
-
 async def setup(bot):
     cog = General(bot)
     await cog.fetch_command_ids()  # Fetch IDs before adding the cog
