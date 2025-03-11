@@ -1,10 +1,17 @@
+import io
 import discord
 from discord.ext import commands
 from discord import app_commands
 import random
 import re
 import math
-import math
+import aiohttp
+import pdfkit
+import zipfile
+from bs4 import BeautifulSoup
+import asyncio
+import os
+import urllib.parse
 from core.logger import log_action
 
 class Utility(commands.Cog):
@@ -135,6 +142,162 @@ class Utility(commands.Cog):
         """Repeats what the user says without replying directly."""
         await interaction.response.send_message("Processing...", delete_after=1)
         await interaction.channel.send(message.replace("\\\\n", "\n"))
+        await log_action(self.bot, interaction)
+
+    @app_commands.command(
+        name="scrape",
+        description="Scrape a webpage and return its offline HTML (with assets) and a PDF snapshot in a ZIP file."
+    )
+    @app_commands.describe(url="The URL of the webpage to scrape")
+    async def scrape(self, interaction: discord.Interaction, url: str):
+
+        """Scrapes a webpage and returns its HTML and PDF snapshot in a ZIP file."""
+
+        # Validate the URL input
+        if not url or url.strip() == "":
+            await interaction.response.send_message("Error: The URL cannot be null or empty.", ephemeral=True)
+            return
+
+        await interaction.response.send_message("Scraping the webpage, please wait...", ephemeral=True)
+
+        try:
+            async with aiohttp.ClientSession() as session:
+                # Fetch the original HTML content
+                async with session.get(url) as response:
+                    html = await response.text()
+
+                if not html or html.strip() == "":
+                    raise ValueError("Received null or empty HTML content from the provided URL.")
+
+                # --- Prepare HTML for PDF Generation ---
+                # Insert a <base> tag so that wkhtmltopdf can resolve relative URLs
+                soup_pdf = BeautifulSoup(html, 'html.parser')
+                head_pdf = soup_pdf.find('head')
+                if not head_pdf:
+                    head_pdf = soup_pdf.new_tag('head')
+                    soup_pdf.insert(0, head_pdf)
+                if not head_pdf.find('base'):
+                    base_tag = soup_pdf.new_tag('base', href=url)
+                    head_pdf.insert(0, base_tag)
+                html_for_pdf = str(soup_pdf)
+
+                # Generate PDF snapshot from the HTML
+                options = {
+                    'enable-local-file-access': True,
+                    'load-error-handling': 'ignore',
+                }
+                try:
+                    pdf_bytes = pdfkit.from_string(html_for_pdf, False, options=options)
+                except Exception as pdf_error:
+                    raise ValueError(f"Failed to generate PDF: {pdf_error}")
+                if not pdf_bytes:
+                    raise ValueError("PDF conversion returned null or empty output.")
+
+                # --- Prepare Offline HTML Version with Local Assets ---
+                soup_offline = BeautifulSoup(html, 'html.parser')
+                # (Optional) Insert a base tag for consistency
+                head_offline = soup_offline.find('head')
+                if not head_offline:
+                    head_offline = soup_offline.new_tag('head')
+                    soup_offline.insert(0, head_offline)
+                if not head_offline.find('base'):
+                    base_tag = soup_offline.new_tag('base', href=url)
+                    head_offline.insert(0, base_tag)
+
+                # Dictionary to track which resource URLs have been downloaded
+                resource_map = {}  # {absolute_url: local_filename}
+                # Dictionary to hold downloaded binary content: {local_filename: bytes}
+                downloaded_files = {}
+                counter = 1  # For generating fallback filenames
+
+                # Tags and attributes to check for assets
+                tags_to_process = {
+                    'img': 'src',
+                    'script': 'src',
+                    'link': 'href',
+                    'audio': 'src',
+                    'video': 'src',
+                    'source': 'src',
+                }
+
+                # Gather all resource elements that need processing
+                resource_elements = []
+                for tag_name, attr in tags_to_process.items():
+                    for tag in soup_offline.find_all(tag_name):
+                        if tag.has_attr(attr):
+                            # For <link> tags, process only if they are stylesheets or icons
+                            if tag_name == 'link':
+                                rel = tag.get('rel', [])
+                                if not any(r.lower() in ['stylesheet', 'icon'] for r in rel):
+                                    continue
+                            resource_elements.append((tag, attr))
+
+                # Define a helper coroutine to download a resource
+                async def fetch_resource(session, resource_url):
+                    try:
+                        async with session.get(resource_url) as res:
+                            if res.status == 200:
+                                return await res.read()
+                    except Exception:
+                        return None
+                    return None
+
+                # Prepare download tasks for unique resources
+                download_tasks = []
+                for element, attr in resource_elements:
+                    original_url = element[attr]
+                    absolute_url = urllib.parse.urljoin(url, original_url)
+                    # If we've already processed this resource, reuse the filename
+                    if absolute_url in resource_map:
+                        local_filename = resource_map[absolute_url]
+                    else:
+                        # Derive a filename from the URL path
+                        parsed = urllib.parse.urlparse(absolute_url)
+                        basename = os.path.basename(parsed.path)
+                        if not basename:
+                            basename = f"resource_{counter}.bin"
+                            counter += 1
+                        # Ensure uniqueness if the filename already exists
+                        if basename in downloaded_files:
+                            basename = f"{os.path.splitext(basename)[0]}_{counter}{os.path.splitext(basename)[1]}"
+                            counter += 1
+                        local_filename = basename
+                        resource_map[absolute_url] = local_filename
+                        task = asyncio.create_task(fetch_resource(session, absolute_url))
+                        download_tasks.append((local_filename, absolute_url, task))
+                    # Update the tag to reference the local asset path within the ZIP
+                    element[attr] = f"assets/{local_filename}"
+
+                # Execute resource downloads concurrently
+                for local_filename, absolute_url, task in download_tasks:
+                    content = await task
+                    if content:
+                        downloaded_files[local_filename] = content
+                    else:
+                        # Log or handle failed downloads (the asset will be missing in the offline version)
+                        print(f"Warning: Failed to download resource: {absolute_url}")
+
+                # Generate the modified offline HTML with updated asset references
+                html_for_offline = str(soup_offline)
+
+                # --- Create a ZIP Archive in Memory ---
+                zip_buffer = io.BytesIO()
+                with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zip_file:
+                    # Add the offline HTML file
+                    zip_file.writestr("page.html", html_for_offline)
+                    # Add the PDF snapshot
+                    zip_file.writestr("page.pdf", pdf_bytes)
+                    # Add each downloaded asset in an 'assets' folder
+                    for filename, content in downloaded_files.items():
+                        zip_file.writestr(f"assets/{filename}", content)
+                zip_buffer.seek(0)
+
+                zip_file_attachment = discord.File(fp=zip_buffer, filename="scraped.zip")
+                await interaction.followup.send("Here is your scraped content with assets:", file=zip_file_attachment)
+
+        except Exception as e:
+            await interaction.followup.send(f"An error occurred while scraping the page: {e}", ephemeral=True)
+
         await log_action(self.bot, interaction)
 
 async def setup(bot):
