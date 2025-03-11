@@ -172,6 +172,14 @@ class Generative(commands.Cog):
         return image
 
     @app_commands.command(name="dots", description="Generate an image with randomly placed colored dots.")
+    @app_commands.describe(
+        width="Width of the image in pixels",
+        height="Height of the image in pixels",
+        dot_diameter="Diameter of each dot in pixels",
+        num_dots="Number of dots to generate (default is 1000)",
+        bg_color="Background color as a hex code (default is #ffffff)",
+        overlap="If True, dots may overlap; if False, they will be placed without overlapping"
+    )
     async def dots(self, interaction: discord.Interaction, 
                    width: int, 
                    height: int, 
@@ -229,6 +237,15 @@ class Generative(commands.Cog):
         await log_action(self.bot, interaction)
 
     @app_commands.command(name="waves", description="Generate a waves image")
+    @app_commands.describe(
+        width="Image width in pixels",
+        height="Image height in pixels",
+        wave_amplitude="Amplitude of the wave in pixels",
+        frequency="Number of sine wave cycles across the image width",
+        vertical_distance="Vertical distance between the start of each wave in pixels",
+        color="Base color (e.g., blue, red, green)",
+        overlap="If True, each subsequent wave is drawn with a smaller vertical offset so it overlaps the previous one"
+    )
     async def waves(
         self,
         interaction: discord.Interaction,
