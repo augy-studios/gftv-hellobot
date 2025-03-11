@@ -1,3 +1,4 @@
+import re
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -6,6 +7,9 @@ import math
 from PIL import Image, ImageDraw
 import io
 import math
+import numpy as np
+import pandas as pd
+import csv
 from core.logger import log_action
 
 def blend(color1, color2, ratio):
@@ -66,7 +70,10 @@ def generate_waves_image(width, height, wave_amplitude, frequency, vertical_dist
     """
     img = Image.new("RGB", (width, height), "white")
     draw = ImageDraw.Draw(img)
-    base_color = color_from_name(color_name)
+    if color_name.lower() == "augy":
+        base_color = (153, 255, 153)  # Augy green in RGB
+    else:
+        base_color = color_from_name(color_name)
     # Define light and dark versions of the base color.
     top_color = blend((255, 255, 255), base_color, 0.25)   # light tint
     bottom_color = blend((0, 0, 0), base_color, 0.5)        # darker shade
@@ -184,6 +191,30 @@ class Generative(commands.Cog):
         """
         # Defer the response to allow for image generation time.
         await interaction.response.defer()
+
+        if width > 4096 or height > 4096:
+            await interaction.followup.send("Error: Image dimensions must be 4096 pixels or less.")
+            return
+        if width < 1 or height < 1:
+            await interaction.followup.send("Error: Image dimensions must be positive.")
+            return
+        if dot_diameter > width or dot_diameter > height:
+            await interaction.followup.send("Error: Dot diameter must be less than the image dimensions.")
+            return
+        if dot_diameter < 1:
+            await interaction.followup.send("Error: Dot diameter must be positive.")
+            return
+        if num_dots < 1:
+            await interaction.followup.send("Error: Number of dots must be positive.")
+            return
+        if num_dots > 20000:
+            await interaction.followup.send("Error: Number of dots must be 20000 or less.")
+            return
+        if bg_color.lower() == "augy":
+            bg_color = "#99FF99"  # Augy green in hex
+        if not re.match(r'^#[0-9a-fA-F]{6}$', bg_color):
+            await interaction.followup.send("Error: Background color must be a valid hex color code.")
+            return
         
         # Generate the image.
         image = Generative._generate_dots_image(width, height, dot_diameter, num_dots, bg_color, overlap)
@@ -225,6 +256,35 @@ class Generative(commands.Cog):
           /waves width:1920 height:1080 wave_amplitude:10 frequency:3 vertical_distance:100 color:blue overlap:true
         """
         await interaction.response.defer()
+
+        if width < 1 or height < 1:
+            await interaction.followup.send("Error: Image dimensions must be positive.")
+            return
+        if width > 4096 or height > 4096:
+            await interaction.followup.send("Error: Image dimensions must be 4096 pixels or less.")
+            return
+        if wave_amplitude < 1:
+            await interaction.followup.send("Error: Wave amplitude must be positive.")
+            return
+        if wave_amplitude > height:
+            await interaction.followup.send("Error: Wave amplitude must be less than the image height.")
+            return
+        if frequency <= 0:
+            await interaction.followup.send("Error: Frequency must be a positive number.")
+            return
+        if frequency > width/2 or frequency > height/2 or frequency > 100:
+            await interaction.followup.send("Error: Frequency must be 100 or less and less than half the image dimensions.")
+            return
+        if vertical_distance < 1:
+            await interaction.followup.send("Error: Vertical distance must be positive.")
+            return
+        if vertical_distance > height:
+            await interaction.followup.send("Error: Vertical distance must be less than the image height.")
+            return
+        if not re.match(r'^[a-zA-Z]+$', color):
+            await interaction.followup.send("Error: Color must be a valid basic color name.")
+            return
+        
         img = generate_waves_image(width, height, wave_amplitude, frequency, vertical_distance, color, overlap)
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
@@ -232,6 +292,128 @@ class Generative(commands.Cog):
         filename = f"waves_{width}x{height}_{wave_amplitude}_{frequency}_{vertical_distance}_{color}_{overlap}.png"
         file = discord.File(fp=buffer, filename=filename)
         await interaction.followup.send(file=file)
+        await log_action(self.bot, interaction)
+
+    @app_commands.command(name="predict", description="Predict a value based on a dataset")
+    @app_commands.describe(
+        target="The x value you want to predict for (e.g., 69)",
+        dataset="A dataset as a string (e.g. '1,2; 2,4; 3,8; 4,16; 5,32'). Optional if CSV file is provided.",
+        csv_file="Upload a CSV file with two columns (x, y). Optional if dataset string is provided."
+    )
+    async def predict(
+        self,
+        interaction: discord.Interaction,
+        target: float,
+        dataset: str = None,
+        csv_file: discord.Attachment = None
+    ):
+        """
+        Predicts a value based on a provided dataset string or CSV file.
+        
+        - If all y values are numeric, a polynomial interpolation is used.
+        - Otherwise, a nearest neighbor approach returns the y value corresponding to the x value closest to the target.
+        """
+        # Initial response to indicate that the command is being processed
+        await interaction.response.send_message("Processing...", delete_after=1)
+        
+        data_points = []  # List to hold tuples (x, y)
+
+        try:
+            # Priority: Process CSV file if provided, verifying its extension.
+            if csv_file is not None:
+                if not csv_file.filename.lower().endswith(".csv"):
+                    await interaction.followup.send("Error: The uploaded file is not a CSV file.")
+                    return
+                try:
+                    file_bytes = await csv_file.read()
+                    file_str = file_bytes.decode("utf-8")
+                    df = pd.read_csv(io.StringIO(file_str))
+                    if df.shape[1] < 2:
+                        await interaction.followup.send("Error: CSV file must have at least two columns.")
+                        return
+                    # Use the first two columns for x and y.
+                    for _, row in df.iterrows():
+                        try:
+                            x_val = float(row.iloc[0])
+                        except Exception:
+                            continue
+                        y_val = str(row.iloc[1]).strip()
+                        data_points.append((x_val, y_val))
+                except Exception as csv_err:
+                    await interaction.followup.send(f"Error processing CSV file: {csv_err}")
+                    return
+
+            # Process the dataset string if provided.
+            elif dataset is not None:
+                if dataset.strip() == "":
+                    await interaction.followup.send("Error: The dataset string is empty.")
+                    return
+                try:
+                    # Split the dataset string by semicolons.
+                    rows = [row for row in dataset.split(";") if row.strip()]
+                    data_list = []
+                    for row in rows:
+                        items = row.split(",")
+                        if len(items) < 2:
+                            continue  # Skip incomplete pairs.
+                        try:
+                            x_val = float(items[0].strip())
+                        except Exception:
+                            continue
+                        y_val = items[1].strip()
+                        data_list.append({"x": x_val, "y": y_val})
+                    if not data_list:
+                        await interaction.followup.send("Error: No valid data points found in dataset string.")
+                        return
+                    df = pd.DataFrame(data_list)
+                    for _, row in df.iterrows():
+                        data_points.append((row["x"], row["y"]))
+                except Exception as ds_err:
+                    await interaction.followup.send(f"Error processing dataset string: {ds_err}")
+                    return
+            else:
+                await interaction.followup.send("Error: Please provide a dataset string or a CSV file.")
+                return
+
+            if len(data_points) < 2:
+                await interaction.followup.send("Error: Please provide at least two valid data points for prediction.")
+                return
+
+            # Check whether all y values are numeric.
+            all_numeric = True
+            numeric_y_vals = []
+            for (x, y) in data_points:
+                try:
+                    numeric_y_vals.append(float(y))
+                except ValueError:
+                    all_numeric = False
+                    break
+
+            # Prediction logic:
+            if all_numeric:
+                # Use polynomial interpolation for numeric y values.
+                x_vals = np.array([pt[0] for pt in data_points])
+                y_vals = np.array(numeric_y_vals)
+                degree = len(data_points) - 1
+                coeffs = np.polyfit(x_vals, y_vals, degree)
+                poly = np.poly1d(coeffs)
+                prediction = poly(target)
+                result = (f"Based on the provided data, the predicted numeric value for {target} is approximately: "
+                          f"{prediction}")
+            else:
+                # Use nearest neighbor approach for non-numeric y values.
+                closest_point = min(data_points, key=lambda pt: abs(pt[0] - target))
+                result = (f"Based on the provided data, the value corresponding to the x value closest to {target} "
+                          f"is: '{closest_point[1]}' (from x = {closest_point[0]})")
+                
+            # Append processing time in milliseconds.
+            latency = round(self.bot.latency * 1000)
+            result += f"\n`Processing time: {latency} ms`"
+            
+            await interaction.followup.send(result)
+        except Exception as e:
+            await interaction.followup.send(f"An unexpected error occurred: {e}")
+        
         await log_action(self.bot, interaction)
 
 async def setup(bot):
