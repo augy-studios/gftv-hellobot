@@ -63,6 +63,7 @@ class General(commands.Cog):
         return [app_commands.Choice(name=category, value=category) for category in categories if current.lower() in category.lower()]
 
     @app_commands.command(name="fix", description="Fixes Twitter, Instagram, and BlueSky links to bypass login walls.")
+    @app_commands.describe(url="The social media link to fix")
     async def fix(self, interaction: discord.Interaction, url: str):
         """Fixes known social media links to an alternative view."""
         patterns = {
