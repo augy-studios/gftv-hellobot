@@ -45,6 +45,7 @@ class Voice(commands.Cog):
         await log_action(self.bot, interaction)
 
     @app_commands.command(name="play", description="Play a track in the voice channel. Discord audio file link and Soundcloud links only.")
+    @app_commands.describe(url="The URL of the audio file to play")
     async def play(self, interaction: discord.Interaction, url: str):
         """Plays a track in a voice channel."""
         # Ensure user is in a voice channel
@@ -130,6 +131,7 @@ class Voice(commands.Cog):
         await log_action(self.bot, interaction)
 
     @app_commands.command(name="loop", description="Toggle looping for the currently playing track.")
+    @app_commands.describe(toggle="Toggle looping on or off")
     @app_commands.choices(toggle=[
         app_commands.Choice(name="on", value="on"),
         app_commands.Choice(name="off", value="off")
