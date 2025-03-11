@@ -12,6 +12,7 @@ class Utility(commands.Cog):
         self.bot = bot
     
     @app_commands.command(name="randnum", description="Generate a random number between a given range.")
+    @app_commands.describe(min_num="The minimum number", max_num="The maximum number")
     async def randnum(self, interaction: discord.Interaction, min_num: int, max_num: int):
         if min_num > max_num:
             await interaction.response.send_message("❌ The minimum number cannot be greater than the maximum number.", ephemeral=True)
@@ -22,6 +23,7 @@ class Utility(commands.Cog):
         await log_action(self.bot, interaction)
 
     @app_commands.command(name="math", description="Solve a math expression.")
+    @app_commands.describe(expression="The math expression to solve")
     async def math(self, interaction: discord.Interaction, expression: str):
         """Evaluates a math expression safely."""
         try:
@@ -40,6 +42,7 @@ class Utility(commands.Cog):
         await log_action(self.bot, interaction)
     
     @app_commands.command(name="roll", description="Roll dice in the format XdY (e.g., /roll 4d8 or /roll d20).")
+    @app_commands.describe(dice="The dice format (e.g., 4d8 or d20)")
     async def roll(self, interaction: discord.Interaction, dice: str):
         match = re.fullmatch(r'(\d*)d(\d+)', dice.strip())
         if not match:
@@ -68,6 +71,7 @@ class Utility(commands.Cog):
         await log_action(self.bot, interaction)
 
     @app_commands.command(name="ytimg", description="Get the thumbnail image of a YouTube video.")
+    @app_commands.describe(link_or_id="The YouTube video link or ID")
     async def ytimg(self, interaction: discord.Interaction, link_or_id: str):
         # Regular expression patterns to extract video ID
         yt_patterns = [
@@ -98,6 +102,7 @@ class Utility(commands.Cog):
         await log_action(self.bot, interaction)
 
     @app_commands.command(name="say", description="Make the bot repeat what you say.")
+    @app_commands.describe(message="The message to repeat")
     async def say(self, interaction: discord.Interaction, message: str):
         """Repeats what the user says without replying directly."""
         await interaction.response.send_message("Processing...", delete_after=1)
