@@ -136,6 +136,11 @@ class Info(commands.Cog):
         known_users = get_known_users()  # Get users from users.txt
         total_channels = sum(len(guild.channels) for guild in self.bot.guilds)
         total_guilds = len(self.bot.guilds)
+        
+        # Count the total number of commands across all cogs
+        total_commands = 0
+        for cog_name, cog in self.bot.cogs.items():
+            total_commands += len(cog.get_app_commands())
 
         # Get bot description from application info
         app_info = await self.bot.application_info()
@@ -149,6 +154,7 @@ class Info(commands.Cog):
         embed.add_field(name="Bot Description", value=bot_description, inline=False)
         embed.add_field(name="Python Version", value=platform.python_version(), inline=True)
         embed.add_field(name="Library", value="discord.py", inline=True)
+        embed.add_field(name="Commands", value=str(total_commands), inline=True)
         embed.add_field(name="Shards", value=shard_count, inline=True)
         embed.add_field(name="Guilds", value=str(total_guilds), inline=True)
         embed.add_field(name="Channels", value=str(total_channels), inline=True)
