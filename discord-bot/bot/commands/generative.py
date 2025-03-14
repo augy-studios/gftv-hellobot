@@ -26,7 +26,7 @@ def blend(color1, color2, ratio):
 def color_from_name(name):
     """
     Return an RGB tuple for a given basic colour name.
-    Defaults to blue if the name isn’t found.
+    Defaults to blue if the name isn't found.
     """
     colors = {
         'red': (255, 0, 0),
@@ -246,6 +246,18 @@ class Generative(commands.Cog):
         color="Base color (e.g., blue, red, green)",
         overlap="If True, each subsequent wave is drawn with a smaller vertical offset so it overlaps the previous one"
     )
+    @app_commands.choices(color=[
+        app_commands.Choice(name="Red", value="red"),
+        app_commands.Choice(name="Green", value="green"),
+        app_commands.Choice(name="Blue", value="blue"),
+        app_commands.Choice(name="Yellow", value="yellow"),
+        app_commands.Choice(name="Purple", value="purple"),
+        app_commands.Choice(name="Orange", value="orange"),
+        app_commands.Choice(name="Pink", value="pink"),
+        app_commands.Choice(name="Cyan", value="cyan"),
+        app_commands.Choice(name="Magenta", value="magenta"),
+        app_commands.Choice(name="Augy Green", value="augy")
+    ])
     async def waves(
         self,
         interaction: discord.Interaction,
