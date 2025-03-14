@@ -7,6 +7,7 @@ import re
 import math
 import aiohttp
 import pdfkit
+import imgkit
 import zipfile
 from bs4 import BeautifulSoup
 import asyncio
@@ -146,12 +147,12 @@ class Utility(commands.Cog):
 
     @app_commands.command(
         name="scrape",
-        description="Scrape a webpage and return its offline HTML (with assets) and a PDF snapshot in a ZIP file."
+        description="Scrape a webpage and return assets in a ZIP file."
     )
     @app_commands.describe(url="The URL of the webpage to scrape")
     async def scrape(self, interaction: discord.Interaction, url: str):
 
-        """Scrapes a webpage and returns its HTML and PDF snapshot in a ZIP file."""
+        """Scrapes a webpage and returns its HTML, PDF and image snapshot in a ZIP file."""
 
         # Validate the URL input
         if not url or url.strip() == "":
@@ -169,8 +170,8 @@ class Utility(commands.Cog):
                 if not html or html.strip() == "":
                     raise ValueError("Received null or empty HTML content from the provided URL.")
 
-                # --- Prepare HTML for PDF Generation ---
-                # Insert a <base> tag so that wkhtmltopdf can resolve relative URLs
+                # --- Prepare HTML for PDF and Image Generation ---
+                # Insert a <base> tag so that wkhtmltopdf and wkhtmltoimage can resolve relative URLs
                 soup_pdf = BeautifulSoup(html, 'html.parser')
                 head_pdf = soup_pdf.find('head')
                 if not head_pdf:
@@ -181,7 +182,7 @@ class Utility(commands.Cog):
                     head_pdf.insert(0, base_tag)
                 html_for_pdf = str(soup_pdf)
 
-                # Generate PDF snapshot from the HTML
+                # --- Generate PDF snapshot from the HTML ---
                 options = {
                     'enable-local-file-access': True,
                     'load-error-handling': 'ignore',
@@ -192,6 +193,14 @@ class Utility(commands.Cog):
                     raise ValueError(f"Failed to generate PDF: {pdf_error}")
                 if not pdf_bytes:
                     raise ValueError("PDF conversion returned null or empty output.")
+                
+                # --- Generate Image (PNG) snapshot from the HTML ---
+                try:
+                    image_bytes = imgkit.from_string(html_for_pdf, False, options=options)
+                except Exception as image_error:
+                    raise ValueError(f"Failed to generate image snapshot: {image_error}")
+                if not image_bytes:
+                    raise ValueError("Image conversion returned null or empty output.")
 
                 # --- Prepare Offline HTML Version with Local Assets ---
                 soup_offline = BeautifulSoup(html, 'html.parser')
@@ -287,13 +296,15 @@ class Utility(commands.Cog):
                     zip_file.writestr("page.html", html_for_offline)
                     # Add the PDF snapshot
                     zip_file.writestr("page.pdf", pdf_bytes)
+                    # Add the image snapshot
+                    zip_file.writestr("page.png", image_bytes)
                     # Add each downloaded asset in an 'assets' folder
                     for filename, content in downloaded_files.items():
                         zip_file.writestr(f"assets/{filename}", content)
                 zip_buffer.seek(0)
 
                 zip_file_attachment = discord.File(fp=zip_buffer, filename="scraped.zip")
-                await interaction.followup.send("Here is your scraped content with assets:", file=zip_file_attachment)
+                await interaction.followup.send("Here is your scraped content with assets, PDF, and image snapshot:", file=zip_file_attachment)
 
         except Exception as e:
             await interaction.followup.send(f"An error occurred while scraping the page: {e}", ephemeral=True)
