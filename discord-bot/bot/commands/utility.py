@@ -183,20 +183,24 @@ class Utility(commands.Cog):
                 html_for_pdf = str(soup_pdf)
 
                 # --- Generate PDF snapshot from the HTML ---
-                options = {
+                pdf_options = {
                     'enable-local-file-access': True,
                     'load-error-handling': 'ignore',
                 }
                 try:
-                    pdf_bytes = pdfkit.from_string(html_for_pdf, False, options=options)
+                    pdf_bytes = pdfkit.from_string(html_for_pdf, False, options=pdf_options)
                 except Exception as pdf_error:
                     raise ValueError(f"Failed to generate PDF: {pdf_error}")
                 if not pdf_bytes:
                     raise ValueError("PDF conversion returned null or empty output.")
                 
                 # --- Generate Image (PNG) snapshot from the HTML ---
+                # Use a different options dictionary for wkhtmltoimage.
+                img_options = {
+                    'format': 'png'
+                }
                 try:
-                    image_bytes = imgkit.from_string(html_for_pdf, False, options=options)
+                    image_bytes = imgkit.from_string(html_for_pdf, False, options=img_options)
                 except Exception as image_error:
                     raise ValueError(f"Failed to generate image snapshot: {image_error}")
                 if not image_bytes:
@@ -216,7 +220,7 @@ class Utility(commands.Cog):
                 # Dictionary to track which resource URLs have been downloaded
                 resource_map = {}  # {absolute_url: local_filename}
                 # Dictionary to hold downloaded binary content: {local_filename: bytes}
-                downloaded_files = {}
+                downloaded_files = {}  # {local_filename: bytes}
                 counter = 1  # For generating fallback filenames
 
                 # Tags and attributes to check for assets
@@ -307,7 +311,10 @@ class Utility(commands.Cog):
                 await interaction.followup.send("Here is your scraped content with assets, PDF, and image snapshot:", file=zip_file_attachment)
 
         except Exception as e:
-            await interaction.followup.send(f"An error occurred while scraping the page: {e}", ephemeral=True)
+            error_str = str(e)
+            if len(error_str) > 1900:
+                error_str = error_str[:1900] + "..."
+            await interaction.followup.send(f"An error occurred while scraping the page: {error_str}", ephemeral=True)
 
         await log_action(self.bot, interaction)
 
