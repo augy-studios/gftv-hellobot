@@ -308,7 +308,7 @@ class Utility(commands.Cog):
                 zip_buffer.seek(0)
 
                 zip_file_attachment = discord.File(fp=zip_buffer, filename="scraped.zip")
-                await interaction.followup.send(f"Here is your scraped content for {absolute_url}:", file=zip_file_attachment)
+                await interaction.followup.send(f"Here is your scraped content for {url}:", file=zip_file_attachment)
 
         except Exception as e:
             error_str = str(e)
