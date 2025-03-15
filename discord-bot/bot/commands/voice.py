@@ -62,6 +62,10 @@ class Voice(commands.Cog):
         if voice_client.is_playing():
             await interaction.response.send_message("❌ I am already playing music!", ephemeral=True)
             return
+        
+        if "youtube.com" in url or "youtu.be" in url:
+            await interaction.response.send_message("❌ YouTube links are not supported. Please use a Discord audio file link, Soundcloud link, or BiliBili link.", ephemeral=True)
+            return
 
         # Check if the URL is a Discord audio file link
         if "cdn.discordapp.com" in url:
