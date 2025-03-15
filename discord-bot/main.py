@@ -25,11 +25,11 @@ async def update_activity():
 # Load cogs
 async def load_cogs():
     await bot.load_extension("bot.commands.general")
-    await bot.load_extension("bot.commands.moderation")
     await bot.load_extension("bot.commands.info")
-    await bot.load_extension("bot.commands.fun")
     await bot.load_extension("bot.commands.utility")
     await bot.load_extension("bot.commands.voice")
+    await bot.load_extension("bot.commands.moderation")
+    await bot.load_extension("bot.commands.fun")
     await bot.load_extension("bot.commands.generative")
     await bot.load_extension("bot.commands.profile")
 
