@@ -73,7 +73,9 @@ class General(commands.Cog):
         link_to_add_bot = "https://discord.com/oauth2/authorize?client_id=1337863636500090900&permissions=1757019580661751&response_type=code&redirect_uri=https%3A%2F%2Fhello.globalfurry.tv%2F&integration_type=0&scope=applications.commands+bot+applications.commands.permissions.update"
         embed.add_field(name="Add Me to Your Server", value=f"[Click here!]({link_to_add_bot})")
         link_to_hello = "https://hello.globalfurry.tv/"
-        embed.add_field(name="About GFTV", value=f"[Learn more about GFTV's HelloSpot!]({link_to_hello})")
+        embed.add_field(name="About HelloSpot", value=f"[Learn more about GFTV's HelloSpot!]({link_to_hello})")
+        link_to_docs = "https://hellobot.globalfurry.tv/"
+        embed.add_field(name="How to Use", value=f"[View the documentation!]({link_to_docs})")
         embed.set_footer(text="Made with ❤️ by GFTV Intl © 2025 All Rights Sniffed • https://globalfurry.tv/")
         await interaction.response.send_message(embed=embed)
         await log_action(self.bot, interaction)
