@@ -33,7 +33,7 @@ class CountryChecklistView(discord.ui.View):
         for idx, cont in enumerate(self.continents):
             chosen = sorted(self.selections[cont])
             value = ", ".join(chosen) if chosen else "None"
-            embed.set_field_at(idx, name=cont, value=value, inline=False)
+            embed.set_field_at(idx, name=cont, value=value, inline=True)
         await msg.edit(embed=embed, view=self)
 
 class ContinentButton(discord.ui.Button):
@@ -494,7 +494,7 @@ class Utility(commands.Cog):
             color=discord.Color.blurple()
         )
         for continent in self.continents:
-            embed.add_field(name=continent, value="None", inline=False)
+            embed.add_field(name=continent, value="None", inline=True)
 
         view = CountryChecklistView(self.continents, interaction.user)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
