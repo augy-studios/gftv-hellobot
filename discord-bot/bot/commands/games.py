@@ -8,14 +8,16 @@ from discord import app_commands
 from discord.ext import commands
 from core.logger import log_action
 
-# Load wordlist for hangman and wordle
+# Load wordlist for hangman and wordle from external CDN
+# wordlist.json maps string lengths to lists of words
+import requests
+
 def load_wordlist(length=None):
-    with open('wordlist.json') as f:
-        data = json.load(f)
+    url = 'https://cdn.augystudios.com/hellobot/wordlist.json'
+    resp = requests.get(url)
+    data = resp.json()
     if length:
-        # fetch list for this length
         return [w.lower() for w in data.get(str(length), [])]
-    # flatten all lists
     all_words = []
     for lst in data.values():
         if isinstance(lst, list):
@@ -54,6 +56,11 @@ class GameManager:
             "dicecombat": DiceCombatSession,
         }
         SessionClass = session_map.get(game_key)
+        # solo play fallback: for multiplayer games, user plays with self if no opponent provided
+        multiplayer_games = {"tictactoe", "connect4", "reversi", "mancala", "battleship", "checkers", "chess", "xiangqi", "battle"}
+        if game_key in multiplayer_games and (len(args) == 0 or args[0] is None):
+            args = (interaction.user,)
+
         if not SessionClass:
             return await interaction.response.send_message(
                 f"Game '{game_key}' not implemented yet.", ephemeral=True
@@ -831,7 +838,7 @@ class HangmanSession(BaseSession):
         display = ' '.join(c if c in self.guessed else '_' for c in self.word)
         embed = discord.Embed(
             title="Hangman",
-            description=f"{display}\nWrong guesses: {self.wrong}/{self.MAX_WRONG}",
+            description=f"`{display}`\nWrong guesses: {self.wrong}/{self.MAX_WRONG}",
             color=0xFF00FF
         )
         embed.set_footer(text="Enter a letter or full word.")
@@ -1562,7 +1569,7 @@ class Games(commands.Cog):
 
     @app_commands.command(name="hangman", description="Play Hangman.")
     @app_commands.describe(length="Word length (optional)")
-    async def hangman(self, interaction: discord.Interaction, length: int = None):
+    async def hangman(self, interaction: discord.Interaction, length: int = random.randint(4, 13)):
         await self.manager.start_game(interaction, "hangman", length)
         await log_action(self.bot, interaction)
 
