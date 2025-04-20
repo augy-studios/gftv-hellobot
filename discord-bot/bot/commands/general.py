@@ -10,31 +10,34 @@ class HelpView(discord.ui.View):
         super().__init__(timeout=120)
         self.pages = pages
         self.current = 0
-        # Create navigation buttons
+
+        # Navigation buttons
         self.prev_button = discord.ui.Button(label="Previous", style=discord.ButtonStyle.secondary)
         self.page_button = discord.ui.Button(label=f"1/{len(pages)}", style=discord.ButtonStyle.gray, disabled=True)
         self.next_button = discord.ui.Button(label="Next", style=discord.ButtonStyle.secondary)
+
         # Assign callbacks
         self.prev_button.callback = self.prev_page
         self.next_button.callback = self.next_page
-        # Add to view
+
+        # Add buttons to view
         self.add_item(self.prev_button)
         self.add_item(self.page_button)
         self.add_item(self.next_button)
+
         self.update_buttons()
 
     async def prev_page(self, interaction: discord.Interaction):
         self.current = max(self.current - 1, 0)
-        await interaction.response.edit_message(embed=self.pages[self.current], view=self)
         self.update_buttons()
+        await interaction.response.edit_message(embed=self.pages[self.current], view=self)
 
     async def next_page(self, interaction: discord.Interaction):
         self.current = min(self.current + 1, len(self.pages) - 1)
-        await interaction.response.edit_message(embed=self.pages[self.current], view=self)
         self.update_buttons()
+        await interaction.response.edit_message(embed=self.pages[self.current], view=self)
 
     def update_buttons(self):
-        # Disable prev/next at boundaries, update page label
         self.prev_button.disabled = (self.current == 0)
         self.next_button.disabled = (self.current == len(self.pages) - 1)
         self.page_button.label = f"{self.current + 1}/{len(self.pages)}"
@@ -117,51 +120,66 @@ class General(commands.Cog):
     @app_commands.command(name="help", description="Display a list of available commands categorized by their category.")
     @app_commands.describe(category="Choose a category to see its commands")
     async def help_command(self, interaction: discord.Interaction, category: str | None = None):
-        # Base embed
-        base_embed = discord.Embed(title="Help - Available Commands", color=discord.Color.random())
+        base_embed = discord.Embed(
+            title="Help - Available Commands",
+            color=discord.Color.random()
+        )
         base_embed.set_footer(text="Made with ❤️ by GFTV Intl © 2025 All Rights Sniffed • https://globalfurry.tv/")
 
-        # Gather commands by cog
+        # Collect commands grouped by Cog
         cog_commands: dict[str, list[str]] = {}
         for cog_name, cog in self.bot.cogs.items():
-            cmds = []
+            lines: list[str] = []
             for cmd in cog.get_app_commands():
                 cmd_id = self.command_ids.get(cmd.name)
                 mention = f"</{cmd.name}:{cmd_id}>" if cmd_id else f"/{cmd.name}"
-                cmds.append(f"**{mention}** - {cmd.description}")
-            if cmds:
-                cog_commands[cog_name] = cmds
+                lines.append(f"**{mention}** - {cmd.description}\n")
+            if lines:
+                cog_commands[cog_name] = lines
 
-        # Filter by category if provided
+        # Handle invalid category
         if category and category not in cog_commands:
-            await interaction.response.send_message(f"❌ No commands found for category: {category}", ephemeral=True)
+            await interaction.response.send_message(
+                f"❌ No commands found for category: {category}",
+                ephemeral=True
+            )
             return
 
-        # Build pages based on Discord's 1024-character limit per field/string
-        sections = []
-        for cog_name, cmds in ([(category, cog_commands[category])] if category else cog_commands.items()):
-            text = f"**{cog_name} Commands**\n" + "\n".join(cmds) + "\n\n"
-            sections.append(text)
+        # Build pages with a 1024-character limit per page
+        pages_content: list[str] = []
+        current_content = ""
+        items = ((category, cog_commands[category]),) if category else cog_commands.items()
 
-        chunks: list[str] = []
-        current_chunk = ""
-        for sec in sections:
-            if len(current_chunk) + len(sec) > 1024:
-                chunks.append(current_chunk)
-                current_chunk = sec
-            else:
-                current_chunk += sec
-        if current_chunk:
-            chunks.append(current_chunk)
+        for cog_name, lines in items:
+            header = f"**{cog_name} Commands**\n"
+            # Start new page if header itself doesn't fit
+            if current_content and len(current_content) + len(header) > 1024:
+                pages_content.append(current_content)
+                current_content = ""
 
-        # Create embeds for each page
+            # Ensure header present
+            if not current_content.startswith(header):
+                current_content += header
+
+            # Add each command line, splitting pages as needed
+            for line in lines:
+                if len(current_content) + len(line) > 1024:
+                    pages_content.append(current_content)
+                    current_content = header + line
+                else:
+                    current_content += line
+
+        if current_content:
+            pages_content.append(current_content)
+
+        # Convert to embeds
         pages: list[discord.Embed] = []
-        for chunk in chunks:
+        for content in pages_content:
             embed = base_embed.copy()
-            embed.description = chunk
+            embed.description = content
             pages.append(embed)
 
-        # Send first page with navigation view
+        # Send paginated view
         view = HelpView(pages)
         await interaction.response.send_message(embed=pages[0], view=view)
 
