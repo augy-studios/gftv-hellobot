@@ -29,6 +29,7 @@ async def load_cogs():
     await bot.load_extension("bot.commands.utility")
     await bot.load_extension("bot.commands.voice")
     await bot.load_extension("bot.commands.moderation")
+    await bot.load_extension("bot.commands.games")
     await bot.load_extension("bot.commands.fun")
     await bot.load_extension("bot.commands.generative")
     await bot.load_extension("bot.commands.profile")
