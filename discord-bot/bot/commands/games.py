@@ -46,14 +46,16 @@ class GameManager:
             "trivia": TriviaSession,
             "ladder": LadderSession,
             "flagmatch": FlagMatchSession,
+            "catan": CatanSession,
+            "uno": UnoSession,
+            "blackjack": BlackjackSession,
         }
         SessionClass = session_map.get(game_key)
         if not SessionClass:
-            return await interaction.response.send_message(f"Game '{game_key}' not implemented yet.", ephemeral=True)
-
-        # opponent may be passed for PvP games
-        opponent = args[0] if args else None
-        session = SessionClass(self, interaction, opponent)
+            return await interaction.response.send_message(
+                f"Game '{game_key}' not implemented yet.", ephemeral=True
+            )
+        session = SessionClass(self, interaction, *args)
         message = await session.start()
         self.sessions[message.id] = session
 
@@ -62,7 +64,9 @@ class GameManager:
         if session:
             await session.on_interaction(interaction)
         else:
-            await interaction.response.send_message("Session expired or not found.", ephemeral=True)
+            await interaction.response.send_message(
+                "Session expired or not found.", ephemeral=True
+            )
 
 # ----------------------------------------
 # Base Session
@@ -73,7 +77,6 @@ class BaseSession:
         self.ctx = interaction
         self.channel = interaction.channel
         self.players = [interaction.user]
-        # for PvP, args[0] may be opponent
         if args and isinstance(args[0], discord.Member):
             self.players.append(args[0])
         else:
@@ -83,15 +86,12 @@ class BaseSession:
     async def start(self) -> discord.Message:
         embed = self.render()
         view = self.build_view()
-        await self.initial_response(embed, view)
-        return self.message
-
-    async def initial_response(self, embed: discord.Embed, view: discord.ui.View):
         await self.manager.bot.wait_until_ready()
         self.message = await self.channel.send(embed=embed, view=view)
+        return self.message
 
     async def on_interaction(self, interaction: discord.Interaction):
-        pass
+        pass  # override in subclasses
 
     def next_player(self):
         self.current = (self.current + 1) % len(self.players)
@@ -1109,6 +1109,244 @@ class FlagButton(discord.ui.Button):
         await self.session.answer(interaction, self.label)
 
 # ----------------------------------------
+# CatanSession (Simplified)
+# ----------------------------------------
+class CatanSession(BaseSession):
+    RESOURCES = ["wood", "brick", "sheep", "wheat", "ore"]
+    COST = {"wood":1, "brick":1, "sheep":1, "wheat":1}
+
+    def __init__(self, manager, interaction, *args):
+        super().__init__(manager, interaction)
+        # initialize resource counts and victory points
+        self.resources = [{r:0 for r in self.RESOURCES} for _ in self.players]
+        self.vp = [0 for _ in self.players]
+
+    def render(self):
+        idx = self.current
+        lines = []
+        for i, player in enumerate(self.players):
+            res = ', '.join(f"{r}: {self.resources[i][r]}" for r in self.RESOURCES)
+            lines.append(f"{player.display_name}: VP {self.vp[i]} | {res}")
+        embed = discord.Embed(
+            title="Catan (Simplified)",
+            description="".join(lines),
+            color=0xDAA520
+        )
+        embed.set_footer(text=f"{self.players[idx].mention}'s turn. Roll dice or build settlement.")
+        return embed
+
+    def build_view(self):
+        view = discord.ui.View(timeout=None)
+        view.add_item(CatanRollButton(self))
+        view.add_item(CatanBuildButton(self))
+        return view
+
+    async def on_interaction(self, interaction):
+        pass
+
+    async def roll_dice(self, interaction):
+        idx = self.current
+        d1, d2 = random.randint(1,6), random.randint(1,6)
+        # each player gains one random resource per die
+        for i in range(len(self.players)):
+            for _ in (d1, d2):
+                res = random.choice(self.RESOURCES)
+                self.resources[i][res] += 1
+        result = f"Rolled {d1}+{d2}. All players gain resources."
+        self.next_player()
+        embed = self.render(); embed.set_footer(text=result)
+        await interaction.response.edit_message(embed=embed, view=self.build_view())
+
+    async def build_settlement(self, interaction):
+        idx = self.current
+        # check cost
+        if any(self.resources[idx][r] < c for r, c in self.COST.items()):
+            return await interaction.response.send_message("Not enough resources!", ephemeral=True)
+        for r, c in self.COST.items():
+            self.resources[idx][r] -= c
+        self.vp[idx] += 1
+        result = f"Built settlement! +1 VP."
+        if self.vp[idx] >= 3:
+            embed = discord.Embed(
+                title="Catan", description=f"{self.players[idx].mention} wins with {self.vp[idx]} VP! 🎉"
+            )
+            return await interaction.response.edit_message(embed=embed, view=None)
+        self.next_player()
+        embed = self.render(); embed.set_footer(text=result)
+        await interaction.response.edit_message(embed=embed, view=self.build_view())
+
+class CatanRollButton(discord.ui.Button):
+    def __init__(self, session):
+        super().__init__(style=discord.ButtonStyle.primary, label="Roll Dice")
+        self.session = session
+    async def callback(self, interaction):
+        await self.session.roll_dice(interaction)
+
+class CatanBuildButton(discord.ui.Button):
+    def __init__(self, session):
+        super().__init__(style=discord.ButtonStyle.success, label="Build Settlement")
+        self.session = session
+    async def callback(self, interaction):
+        await self.session.build_settlement(interaction)
+
+# ----------------------------------------
+# UnoSession (Simplified)
+# ----------------------------------------
+class UnoSession(BaseSession):
+    COLORS = ["R","G","B","Y"]  # Red, Green, Blue, Yellow
+    def __init__(self, manager, interaction, *args):
+        super().__init__(manager, interaction)
+        # build deck
+        self.deck = [f"{color}{num}" for color in self.COLORS for num in range(0,10)] * 2
+        random.shuffle(self.deck)
+        # deal 5 cards each
+        self.hands = {p: [self.deck.pop() for _ in range(5)] for p in self.players}
+        self.discard = [self.deck.pop()]
+
+    def render(self):
+        idx = self.current
+        top = self.discard[-1]
+        hand = ','.join(self.hands[self.players[idx]])
+        embed = discord.Embed(
+            title="UNO (Simplified)",
+            description=f"Top: {top} \nYour hand: {hand}",
+            color=0xFF4500
+        )
+        embed.set_footer(text="Play a matching card or draw.")
+        return embed
+
+    def build_view(self):
+        view = discord.ui.View(timeout=None)
+        # buttons for playable cards
+        top = self.discard[-1]
+        color_top, num_top = top[0], top[1:]
+        for card in self.hands[self.players[self.current]]:
+            if card[0]==color_top or card[1:]==num_top:
+                view.add_item(UnoPlayButton(card, self))
+        view.add_item(UnoDrawButton(self))
+        return view
+
+    async def on_interaction(self, interaction):
+        pass
+
+    async def play_card(self, interaction, card):
+        idx = self.current; player = self.players[idx]
+        if card not in self.hands[player]:
+            return await interaction.response.send_message("You don't have that card!", ephemeral=True)
+        top = self.discard[-1]
+        if not (card[0]==top[0] or card[1:]==top[1:]):
+            return await interaction.response.send_message("Can't play that card!", ephemeral=True)
+        self.hands[player].remove(card)
+        self.discard.append(card)
+        if not self.hands[player]:
+            embed = discord.Embed(title="UNO", description=f"{player.mention} wins! 🎉")
+            return await interaction.response.edit_message(embed=embed, view=None)
+        self.next_player()
+        await interaction.response.edit_message(embed=self.render(), view=self.build_view())
+
+    async def draw_card(self, interaction):
+        idx = self.current; player = self.players[idx]
+        if not self.deck:
+            self.deck = self.discard[:-1]
+            random.shuffle(self.deck)
+        card = self.deck.pop()
+        self.hands[player].append(card)
+        self.next_player()
+        await interaction.response.edit_message(embed=self.render(), view=self.build_view())
+
+class UnoPlayButton(discord.ui.Button):
+    def __init__(self, card, session):
+        super().__init__(style=discord.ButtonStyle.secondary, label=card)
+        self.card = card; self.session = session
+    async def callback(self, interaction):
+        await self.session.play_card(interaction, self.card)
+
+class UnoDrawButton(discord.ui.Button):
+    def __init__(self, session):
+        super().__init__(style=discord.ButtonStyle.primary, label="Draw")
+        self.session = session
+    async def callback(self, interaction):
+        await self.session.draw_card(interaction)
+
+# ----------------------------------------
+# BlackjackSession
+# ----------------------------------------
+class BlackjackSession(BaseSession):
+    DECK = [str(v) for v in range(2,11)] + ['J','Q','K','A']
+    VALUE = {**{str(v):v for v in range(2,11)}, 'J':10,'Q':10,'K':10,'A':11}
+
+    def __init__(self, manager, interaction, *args):
+        super().__init__(manager, interaction)
+        # build and shuffle deck
+        self.deck = BlackjackSession.DECK*4
+        random.shuffle(self.deck)
+        self.hands = {p: [self.deck.pop(), self.deck.pop()] for p in self.players}
+        self.stand = {p: False for p in self.players}
+
+    def hand_value(self, hand):
+        val = sum(BlackjackSession.VALUE[c] for c in hand)
+        # adjust aces
+        for c in hand:
+            if val>21 and c=='A': val-=10
+        return val
+
+    def render(self):
+        idx = self.current; player = self.players[idx]
+        your = self.hands[player]
+        your_val = self.hand_value(your)
+        embed = discord.Embed(
+            title="Blackjack",
+            description=f"Your hand: {','.join(your)} ({your_val})",
+            color=0x000000
+        )
+        embed.set_footer(text="Hit or Stand.")
+        return embed
+
+    def build_view(self):
+        view = discord.ui.View(timeout=None)
+        view.add_item(HitButton(self))
+        view.add_item(StandButton(self))
+        return view
+
+    async def on_interaction(self, interaction):
+        pass
+
+    async def hit(self, interaction):
+        player = self.players[self.current]
+        self.hands[player].append(self.deck.pop())
+        if self.hand_value(self.hands[player])>21:
+            embed = discord.Embed(title="Blackjack", description="Bust! You lose.")
+            return await interaction.response.edit_message(embed=embed, view=None)
+        await interaction.response.edit_message(embed=self.render(), view=self.build_view())
+
+    async def stand_turn(self, interaction):
+        player = self.players[self.current]
+        self.stand[player] = True
+        self.next_player()
+        opponent = self.players[self.current]
+        # dealer logic: hit until >=17
+        while self.hand_value(self.hands[opponent])<17:
+            self.hands[opponent].append(self.deck.pop())
+        pval = self.hand_value(self.hands[player])
+        oval = self.hand_value(self.hands[opponent])
+        if oval>21 or pval>oval:
+            msg="You win!"
+        elif pval<oval:
+            msg="You lose."
+        else:
+            msg="Push."
+        embed = discord.Embed(title="Blackjack", description=msg)
+        return await interaction.response.edit_message(embed=embed, view=None)
+
+class HitButton(discord.ui.Button):
+    def __init__(self, session): super().__init__(style=discord.ButtonStyle.primary, label="Hit"); self.session=session
+    async def callback(self, interaction): await self.session.hit(interaction)
+
+class StandButton(discord.ui.Button):
+    def __init__(self, session): super().__init__(style=discord.ButtonStyle.secondary, label="Stand"); self.session=session
+    async def callback(self, interaction): await self.session.stand_turn(interaction)
+
+# ----------------------------------------
 # Cog Definition
 # ----------------------------------------
 class Games(commands.Cog):
@@ -1193,6 +1431,18 @@ class Games(commands.Cog):
     @app_commands.command(name="flagmatch", description="Match a country to its flag.")
     async def flagmatch(self, interaction: discord.Interaction):
         await self.manager.start_game(interaction, "flagmatch")
+
+    @app_commands.command(name="catan", description="Play Catan (simplified) with resources and settlements.")
+    async def catan(self, interaction: discord.Interaction):
+        await self.manager.start_game(interaction, "catan")
+
+    @app_commands.command(name="uno", description="Play simplified UNO with color/number cards.")
+    async def uno(self, interaction: discord.Interaction):
+        await self.manager.start_game(interaction, "uno")
+
+    @app_commands.command(name="blackjack", description="Play Blackjack against the dealer.")
+    async def blackjack(self, interaction: discord.Interaction):
+        await self.manager.start_game(interaction, "blackjack")
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
