@@ -5,6 +5,40 @@ from discord.ext import commands
 from discord import app_commands
 from core.logger import log_action
 
+class HelpView(discord.ui.View):
+    def __init__(self, pages: list[discord.Embed]):
+        super().__init__(timeout=120)
+        self.pages = pages
+        self.current = 0
+        # Create navigation buttons
+        self.prev_button = discord.ui.Button(label="Previous", style=discord.ButtonStyle.secondary)
+        self.page_button = discord.ui.Button(label=f"1/{len(pages)}", style=discord.ButtonStyle.gray, disabled=True)
+        self.next_button = discord.ui.Button(label="Next", style=discord.ButtonStyle.secondary)
+        # Assign callbacks
+        self.prev_button.callback = self.prev_page
+        self.next_button.callback = self.next_page
+        # Add to view
+        self.add_item(self.prev_button)
+        self.add_item(self.page_button)
+        self.add_item(self.next_button)
+        self.update_buttons()
+
+    async def prev_page(self, interaction: discord.Interaction):
+        self.current = max(self.current - 1, 0)
+        await interaction.response.edit_message(embed=self.pages[self.current], view=self)
+        self.update_buttons()
+
+    async def next_page(self, interaction: discord.Interaction):
+        self.current = min(self.current + 1, len(self.pages) - 1)
+        await interaction.response.edit_message(embed=self.pages[self.current], view=self)
+        self.update_buttons()
+
+    def update_buttons(self):
+        # Disable prev/next at boundaries, update page label
+        self.prev_button.disabled = (self.current == 0)
+        self.next_button.disabled = (self.current == len(self.pages) - 1)
+        self.page_button.label = f"{self.current + 1}/{len(self.pages)}"
+
 class General(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -82,43 +116,62 @@ class General(commands.Cog):
 
     @app_commands.command(name="help", description="Display a list of available commands categorized by their category.")
     @app_commands.describe(category="Choose a category to see its commands")
-    async def help_command(self, interaction: discord.Interaction, category: str = None):
-        embed = discord.Embed(title="Help - Available Commands", color=discord.Color.random())
-        embed.description = "Use / followed by the command name to interact with the bot. Click on a command to execute it."
-        embed.set_footer(text="Made with ❤️ by GFTV Intl © 2025 All Rights Sniffed • https://globalfurry.tv/")
+    async def help_command(self, interaction: discord.Interaction, category: str | None = None):
+        # Base embed
+        base_embed = discord.Embed(title="Help - Available Commands", color=discord.Color.random())
+        base_embed.set_footer(text="Made with ❤️ by GFTV Intl © 2025 All Rights Sniffed • https://globalfurry.tv/")
 
-        # Organize commands by category (cog)
-        cog_commands = {}
+        # Gather commands by cog
+        cog_commands: dict[str, list[str]] = {}
         for cog_name, cog in self.bot.cogs.items():
-            commands_list = []
+            cmds = []
+            for cmd in cog.get_app_commands():
+                cmd_id = self.command_ids.get(cmd.name)
+                mention = f"</{cmd.name}:{cmd_id}>" if cmd_id else f"/{cmd.name}"
+                cmds.append(f"**{mention}** - {cmd.description}")
+            if cmds:
+                cog_commands[cog_name] = cmds
 
-            for command in cog.get_app_commands():
-                command_id = self.command_ids.get(command.name)
-                if command_id:
-                    commands_list.append(f"**</{command.name}:{command_id}>** - {command.description}")
-                else:
-                    commands_list.append(f"**/{command.name}** - {command.description}")
+        # Filter by category if provided
+        if category and category not in cog_commands:
+            await interaction.response.send_message(f"❌ No commands found for category: {category}", ephemeral=True)
+            return
 
-            if commands_list:
-                cog_commands[cog_name] = commands_list
+        # Build pages based on Discord's 1024-character limit per field/string
+        sections = []
+        for cog_name, cmds in ([(category, cog_commands[category])] if category else cog_commands.items()):
+            text = f"**{cog_name} Commands**\n" + "\n".join(cmds) + "\n\n"
+            sections.append(text)
 
-        # Add each category of commands to the embed
-        if category:
-            if category in cog_commands:
-                embed.add_field(name=f"**{category} Commands**", value="\n".join(cog_commands[category]), inline=False)
+        chunks: list[str] = []
+        current_chunk = ""
+        for sec in sections:
+            if len(current_chunk) + len(sec) > 1024:
+                chunks.append(current_chunk)
+                current_chunk = sec
             else:
-                await interaction.response.send_message(f"❌ No commands found for category: {category}", ephemeral=True)
-                return
-        else:
-            for category, commands in cog_commands.items():
-                embed.add_field(name=f"**{category} Commands**", value="\n".join(commands), inline=False)
+                current_chunk += sec
+        if current_chunk:
+            chunks.append(current_chunk)
 
-        await interaction.response.send_message(embed=embed)
+        # Create embeds for each page
+        pages: list[discord.Embed] = []
+        for chunk in chunks:
+            embed = base_embed.copy()
+            embed.description = chunk
+            pages.append(embed)
+
+        # Send first page with navigation view
+        view = HelpView(pages)
+        await interaction.response.send_message(embed=pages[0], view=view)
 
     @help_command.autocomplete("category")
-    async def help_command_autocomplete(self, interaction: discord.Interaction, current: str):
-        categories = [cog_name for cog_name in self.bot.cogs.keys()]
-        return [app_commands.Choice(name=category, value=category) for category in categories if current.lower() in category.lower()]
+    async def help_autocomplete(self, interaction: discord.Interaction, current: str):
+        return [
+            app_commands.Choice(name=c, value=c)
+            for c in self.bot.cogs.keys()
+            if current.lower() in c.lower()
+        ]
 
 async def setup(bot):
     cog = General(bot)
