@@ -1,10 +1,26 @@
 import random
+import json
+import aiohttp
 import discord
 import chess
 import xiangqi
 from discord import app_commands
 from discord.ext import commands
 from core.logger import log_action
+
+# Load wordlist for hangman and wordle
+def load_wordlist(length=None):
+    with open('wordlist.json') as f:
+        data = json.load(f)
+    if length:
+        # fetch list for this length
+        return [w.lower() for w in data.get(str(length), [])]
+    # flatten all lists
+    all_words = []
+    for lst in data.values():
+        if isinstance(lst, list):
+            all_words.extend(lst)
+    return [w.lower() for w in all_words]
 
 # ----------------------------------------
 # Game Sessions and Manager
@@ -25,6 +41,11 @@ class GameManager:
             "chess": ChessSession,
             "xiangqi": XiangqiSession,
             "risk": RiskSession,
+            "hangman": HangmanSession,
+            "wordle": WordleSession,
+            "trivia": TriviaSession,
+            "ladder": LadderSession,
+            "flagmatch": FlagMatchSession,
         }
         SessionClass = session_map.get(game_key)
         if not SessionClass:
@@ -47,12 +68,16 @@ class GameManager:
 # Base Session
 # ----------------------------------------
 class BaseSession:
-    def __init__(self, manager: GameManager, interaction: discord.Interaction, opponent: discord.Member = None):
+    def __init__(self, manager: GameManager, interaction: discord.Interaction, *args):
         self.manager = manager
         self.ctx = interaction
         self.channel = interaction.channel
         self.players = [interaction.user]
-        self.players.append(opponent or manager.bot.user)
+        # for PvP, args[0] may be opponent
+        if args and isinstance(args[0], discord.Member):
+            self.players.append(args[0])
+        else:
+            self.players.append(manager.bot.user)
         self.current = 0
 
     async def start(self) -> discord.Message:
@@ -788,6 +813,302 @@ class RiskEndButton(discord.ui.Button):
         await self.session.end_turn(interaction)
 
 # ----------------------------------------
+# HangmanSession
+# ----------------------------------------
+class HangmanSession(BaseSession):
+    MAX_WRONG = 6
+    def __init__(self, manager, interaction, length: int = None):
+        super().__init__(manager, interaction)
+        words = load_wordlist(length)
+        self.word = random.choice(words)
+        self.guessed = set()
+        self.wrong = 0
+
+    def render(self):
+        display = ' '.join(c if c in self.guessed else '_' for c in self.word)
+        embed = discord.Embed(
+            title="Hangman",
+            description=f"{display}\nWrong guesses: {self.wrong}/{self.MAX_WRONG}",
+            color=0xFF00FF
+        )
+        embed.set_footer(text="Enter a letter or full word.")
+        return embed
+
+    def build_view(self):
+        view = discord.ui.View(timeout=None)
+        view.add_item(HangmanGuessButton(self))
+        return view
+
+    async def on_interaction(self, interaction: discord.Interaction):
+        pass
+
+    async def guess(self, interaction, text: str):
+        text = text.lower().strip()
+        if len(text) == 1:
+            if text in self.guessed:
+                return await interaction.response.send_message("Already guessed!", ephemeral=True)
+            if text in self.word:
+                self.guessed.add(text)
+            else:
+                self.wrong += 1
+                self.guessed.add(text)
+        else:
+            if text == self.word:
+                self.guessed.update(self.word)
+            else:
+                self.wrong += 1
+        if all(c in self.guessed for c in self.word):
+            embed = discord.Embed(
+                title="Hangman",
+                description=f"You solved it! The word was **{self.word}** 🎉"
+            )
+            return await interaction.response.edit_message(embed=embed, view=None)
+        if self.wrong >= self.MAX_WRONG:
+            embed = discord.Embed(
+                title="Hangman",
+                description=f"Game over! Word was **{self.word}**."
+            )
+            return await interaction.response.edit_message(embed=embed, view=None)
+        await interaction.response.edit_message(embed=self.render(), view=self.build_view())
+
+class HangmanGuessButton(discord.ui.Button):
+    def __init__(self, session):
+        super().__init__(style=discord.ButtonStyle.primary, label="Guess")
+        self.session = session
+    async def callback(self, interaction: discord.Interaction):
+        modal = HangmanModal(self.session)
+        await interaction.response.send_modal(modal)
+
+class HangmanModal(discord.ui.Modal):
+    def __init__(self, session):
+        super().__init__(title="Hangman Guess")
+        self.session = session
+        self.text = discord.ui.TextInput(label="Letter or Word", max_length=20)
+        self.add_item(self.text)
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.session.guess(interaction, self.text.value)
+
+# ----------------------------------------
+# WordleSession
+# ----------------------------------------
+class WordleSession(BaseSession):
+    MAX_GUESSES = 6
+    def __init__(self, manager, interaction, length: int = 5):
+        super().__init__(manager, interaction)
+        words = load_wordlist(length)
+        self.target = random.choice(words)
+        self.length = length
+        self.guesses = []
+
+    def render(self):
+        lines = []
+        for g in self.guesses:
+            line = ''.join(
+                '🟩' if g[i] == self.target[i] else
+                '🟨' if g[i] in self.target else
+                '⬛'
+                for i in range(self.length)
+            )
+            lines.append(line)
+        embed = discord.Embed(
+            title="Wordle",
+            description='\n'.join(lines),
+            color=0x00FF00
+        )
+        embed.set_footer(text=f"Guess {len(self.guesses)+1}/{self.MAX_GUESSES}")
+        return embed
+
+    def build_view(self):
+        view = discord.ui.View(timeout=None)
+        view.add_item(WordleGuessButton(self))
+        return view
+
+    async def on_interaction(self, interaction: discord.Interaction):
+        pass
+
+    async def guess(self, interaction, word: str):
+        word = word.lower().strip()
+        if len(word) != self.length:
+            return await interaction.response.send_message(
+                f"Word must be {self.length} letters.", ephemeral=True
+            )
+        self.guesses.append(word)
+        if word == self.target:
+            return await interaction.response.edit_message(
+                embed=discord.Embed(title="Wordle", description=f"Correct! {self.target}"),
+                view=None
+            )
+        if len(self.guesses) >= self.MAX_GUESSES:
+            return await interaction.response.edit_message(
+                embed=discord.Embed(title="Wordle", description=f"Out of guesses! Word was {self.target}"),
+                view=None
+            )
+        await interaction.response.edit_message(embed=self.render(), view=self.build_view())
+
+class WordleGuessButton(discord.ui.Button):
+    def __init__(self, session):
+        super().__init__(style=discord.ButtonStyle.primary, label="Guess")
+        self.session = session
+    async def callback(self, interaction: discord.Interaction):
+        modal = WordleModal(self.session)
+        await interaction.response.send_modal(modal)
+
+class WordleModal(discord.ui.Modal):
+    def __init__(self, session):
+        super().__init__(title="Wordle Guess")
+        self.session = session
+        self.text = discord.ui.TextInput(label="Guess", max_length=session.length)
+        self.add_item(self.text)
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.session.guess(interaction, self.text.value)
+
+# ----------------------------------------
+# TriviaSession using Open Trivia DB
+# ----------------------------------------
+class TriviaSession(BaseSession):
+    def __init__(self, manager, interaction, category: str = None):
+        super().__init__(manager, interaction)
+        self.category = category
+        self.question = None
+        self.correct = None
+        self.options = []
+
+    async def start(self):
+        await self.fetch_question()
+        return await super().start()
+
+    async def fetch_question(self):
+        url = 'https://opentdb.com/api.php?amount=1&type=multiple'
+        if self.category:
+            url += f'&category={self.category}'
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as r:
+                data = await r.json()
+        q = data['results'][0]
+        self.question = discord.utils.escape_markdown(q['question'])
+        self.correct = q['correct_answer']
+        opts = q['incorrect_answers'] + [q['correct_answer']]
+        random.shuffle(opts)
+        self.options = opts
+
+    def render(self):
+        embed=discord.Embed(title="Trivia", description=self.question, color=0xFFD700)
+        return embed
+
+    def build_view(self):
+        view=discord.ui.View(timeout=None)
+        for opt in self.options:
+            view.add_item(TriviaButton(opt, self))
+        return view
+
+    async def on_interaction(self, interaction): pass
+
+    async def answer(self, interaction, choice: str):
+        if choice==self.correct:
+            desc = f"✅ Correct! The answer was **{self.correct}**."
+        else:
+            desc = f"❌ Wrong! It was **{self.correct}**."
+        embed=discord.Embed(title="Trivia", description=desc)
+        await interaction.response.edit_message(embed=embed, view=None)
+
+class TriviaButton(discord.ui.Button):
+    def __init__(self, label, session):
+        super().__init__(style=discord.ButtonStyle.secondary, label=label[:100])
+        self.session=session
+    async def callback(self, interaction: discord.Interaction):
+        await self.session.answer(interaction, self.label)
+
+# ----------------------------------------
+# LadderSession for Word Ladders
+# ----------------------------------------
+class LadderSession(BaseSession):
+    def __init__(self, manager, interaction, start: str, end: str):
+        super().__init__(manager, interaction)
+        self.start = start.lower()
+        self.end = end.lower()
+        self.path = self.find_path()
+
+    def find_path(self):
+        words = set(load_wordlist(len(self.start)))
+        queue = [[self.start]]
+        visited = {self.start}
+        while queue:
+            path = queue.pop(0)
+            last = path[-1]
+            if last==self.end:
+                return path
+            for i in range(len(last)):
+                for c in 'abcdefghijklmnopqrstuvwxyz':
+                    w = last[:i]+c+last[i+1:]
+                    if w in words and w not in visited:
+                        visited.add(w)
+                        queue.append(path+[w])
+        return None
+
+    def render(self):
+        if not self.path:
+            desc = f"No ladder found from {self.start} to {self.end}."
+        else:
+            desc = ' -> '.join(self.path)
+        embed=discord.Embed(title="Word Ladder", description=desc)
+        return embed
+
+    def build_view(self):
+        return discord.ui.View()  # no interactions
+
+# ----------------------------------------
+# FlagMatchSession
+# ----------------------------------------
+class FlagMatchSession(BaseSession):
+    def __init__(self, manager, interaction):
+        super().__init__(manager, interaction)
+        self.flags = []  # list of (name, url)
+        self.correct = None
+
+    async def start(self):
+        await self.fetch_flags()
+        return await super().start()
+
+    async def fetch_flags(self):
+        # get 4 random countries
+        async with aiohttp.ClientSession() as session:
+            async with session.get('https://restcountries.com/v3.1/all') as r:
+                data = await r.json()
+        choices = random.sample(data, 4)
+        self.flags = [(c['name']['common'], c['flags']['png']) for c in choices]
+        self.correct = random.choice(self.flags)
+
+    def render(self):
+        name, url = self.correct
+        embed=discord.Embed(title="Flag Match", description="Which country does this flag belong to?", color=0x0000FF)
+        embed.set_image(url=url)
+        return embed
+
+    def build_view(self):
+        view=discord.ui.View(timeout=None)
+        random.shuffle(self.flags)
+        for name, _ in self.flags:
+            view.add_item(FlagButton(name, self))
+        return view
+
+    async def on_interaction(self, interaction): pass
+
+    async def answer(self, interaction, choice: str):
+        if choice==self.correct[0]:
+            desc = "✅ Correct!"
+        else:
+            desc = f"❌ Wrong! It was {self.correct[0]}."
+        embed=discord.Embed(title="Flag Match", description=desc)
+        await interaction.response.edit_message(embed=embed, view=None)
+
+class FlagButton(discord.ui.Button):
+    def __init__(self, label, session):
+        super().__init__(style=discord.ButtonStyle.secondary, label=label[:20])
+        self.session=session
+    async def callback(self, interaction: discord.Interaction):
+        await self.session.answer(interaction, self.label)
+
+# ----------------------------------------
 # Cog Definition
 # ----------------------------------------
 class Games(commands.Cog):
@@ -848,6 +1169,30 @@ class Games(commands.Cog):
     async def risk(self, interaction: discord.Interaction):
         await self.manager.start_game(interaction, "risk")
         await log_action(self.bot, interaction)
+
+    @app_commands.command(name="hangman", description="Play Hangman.")
+    @app_commands.describe(length="Word length (optional)")
+    async def hangman(self, interaction: discord.Interaction, length: int = None):
+        await self.manager.start_game(interaction, "hangman", length)
+
+    @app_commands.command(name="wordle", description="Play Wordle.")
+    @app_commands.describe(length="Word length")
+    async def wordle(self, interaction: discord.Interaction, length: int = 5):
+        await self.manager.start_game(interaction, "wordle", length)
+
+    @app_commands.command(name="trivia", description="Answer a trivia question.")
+    @app_commands.describe(category="Open Trivia DB category ID (optional)")
+    async def trivia(self, interaction: discord.Interaction, category: str = None):
+        await self.manager.start_game(interaction, "trivia", category)
+
+    @app_commands.command(name="ladder", description="Solve a word ladder.")
+    @app_commands.describe(start="Start word", end="End word")
+    async def ladder(self, interaction: discord.Interaction, start: str, end: str):
+        await self.manager.start_game(interaction, "ladder", start, end)
+
+    @app_commands.command(name="flagmatch", description="Match a country to its flag.")
+    async def flagmatch(self, interaction: discord.Interaction):
+        await self.manager.start_game(interaction, "flagmatch")
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
