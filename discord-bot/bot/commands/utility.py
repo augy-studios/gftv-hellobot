@@ -15,9 +15,158 @@ import os
 import urllib.parse
 from core.logger import log_action
 
+class CountryChecklistView(discord.ui.View):
+    def __init__(self, continents: dict[str, list[str]], owner: discord.User):
+        super().__init__(timeout=None)
+        self.continents = continents
+        self.owner = owner
+        self.init_message: discord.Message
+        self.selections: dict[str, set[str]] = {c: set() for c in continents}
+        for c in continents:
+            self.add_item(ContinentButton(c))
+        self.add_item(DoneButton())
+
+    async def update_embed(self, interaction: discord.Interaction):
+        # edit the original checklist embed
+        msg = self.init_message
+        embed = msg.embeds[0]
+        for idx, cont in enumerate(self.continents):
+            chosen = sorted(self.selections[cont])
+            value = ", ".join(chosen) if chosen else "None"
+            embed.set_field_at(idx, name=cont, value=value, inline=False)
+        await msg.edit(embed=embed, view=self)
+
+class ContinentButton(discord.ui.Button):
+    def __init__(self, continent: str):
+        super().__init__(style=discord.ButtonStyle.primary, label=continent)
+        self.continent = continent
+
+    async def callback(self, interaction: discord.Interaction):
+        view: CountryChecklistView = self.view  # type: ignore
+        if interaction.user.id != view.owner.id:
+            return await interaction.response.send_message("This isn't yours.", ephemeral=True)
+
+        countries = view.continents[self.continent]
+        paged = PaginatedSelectView(countries, self.continent, view)
+        await interaction.response.send_message(
+            f"Select in **{self.continent}** (page 1/{paged.total_pages}):",
+            view=paged,
+            ephemeral=True
+        )
+
+class PaginatedSelectView(discord.ui.View):
+    def __init__(
+        self,
+        options: list[str],
+        continent: str,
+        parent: CountryChecklistView
+    ):
+        super().__init__(timeout=None)
+        self.options = options
+        self.continent = continent
+        self.parent = parent
+        self.page_size = 25
+        self.pages = [options[i:i+self.page_size] for i in range(0, len(options), self.page_size)]
+        self.page = 0
+        self.total_pages = len(self.pages)
+        self.page_selections: dict[int, set[str]] = {}
+        self.update_components()
+
+    def update_components(self):
+        self.clear_items()
+        opts = [discord.SelectOption(label=o, value=o) for o in self.pages[self.page]]
+        self.add_item(PageSelect(opts, self))
+        prev_btn = PrevButton()
+        prev_btn.disabled = self.page == 0
+        self.add_item(prev_btn)
+        next_btn = NextButton()
+        next_btn.disabled = self.page == self.total_pages - 1
+        self.add_item(next_btn)
+        self.add_item(SubmitButton(self.continent, self.parent))
+
+    async def refresh(self, interaction: discord.Interaction):
+        content = f"Select in **{self.continent}** (page {self.page+1}/{self.total_pages}):"
+        await interaction.response.edit_message(content=content, view=self)
+
+class PageSelect(discord.ui.Select):
+    def __init__(self, options: list[discord.SelectOption], view: PaginatedSelectView):
+        super().__init__(placeholder="Choose countries…", min_values=0, max_values=len(options), options=options)
+        self.pview = view
+
+    async def callback(self, interaction: discord.Interaction):
+        self.pview.page_selections[self.pview.page] = set(self.values)
+        await interaction.response.defer()
+
+class PrevButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(style=discord.ButtonStyle.secondary, label="◀️")
+
+    async def callback(self, interaction: discord.Interaction):
+        view: PaginatedSelectView = self.view  # type: ignore
+        view.page -= 1
+        view.update_components()
+        await view.refresh(interaction)
+
+class NextButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(style=discord.ButtonStyle.secondary, label="▶️")
+
+    async def callback(self, interaction: discord.Interaction):
+        view: PaginatedSelectView = self.view  # type: ignore
+        view.page += 1
+        view.update_components()
+        await view.refresh(interaction)
+
+class SubmitButton(discord.ui.Button):
+    def __init__(self, continent: str, parent: CountryChecklistView):
+        super().__init__(style=discord.ButtonStyle.success, label="Submit")
+        self.continent = continent
+        self.parent = parent
+
+    async def callback(self, interaction: discord.Interaction):
+        # acknowledge interaction to avoid double response
+        await interaction.response.defer(ephemeral=True)
+        pview: PaginatedSelectView = self.view  # type: ignore
+        # combine selections from all pages
+        selected = set().union(*pview.page_selections.values()) if pview.page_selections else set()
+        self.parent.selections[self.continent] = selected
+        # update the main embed checklist
+        await self.parent.update_embed(interaction)
+        # remove the ephemeral selection view
+        await interaction.message.edit(content="✅ Selection saved.", view=None)
+
+class DoneButton(discord.ui.Button):
+    def __init__(self):
+        super().__init__(style=discord.ButtonStyle.success, label="Done")
+
+    async def callback(self, interaction: discord.Interaction):
+        view: CountryChecklistView = self.view  # type: ignore
+        if interaction.user.id != view.owner.id:
+            return await interaction.response.send_message("This isn't yours.", ephemeral=True)
+
+        total_selected = sum(len(v) for v in view.selections.values())
+        total_countries = sum(len(v) for v in view.continents.values())
+        pct = (total_selected / total_countries * 100) if total_countries else 0
+
+        # edit the original ephemeral message
+        msg = view.init_message
+        embed = msg.embeds[0]
+        embed.add_field(
+            name="Results",
+            value=(
+                f"{view.owner.mention} has been to **{total_selected}**/"
+                f"**{total_countries}** ({pct:.2f}%) of the world!"
+            ),
+            inline=False
+        )
+        await msg.edit(embed=embed, view=None)
+        # broadcast publicly
+        await msg.channel.send(embed=embed)
+
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        self._load_task = bot.loop.create_task(self._load_countries())
     
     @app_commands.command(name="randnum", description="Generate a random number between a given range.")
     @app_commands.describe(min_num="The minimum number", max_num="The maximum number")
@@ -317,6 +466,40 @@ class Utility(commands.Cog):
             await interaction.followup.send(f"An error occurred while scraping the page: {error_str}", ephemeral=True)
 
         await log_action(self.bot, interaction)
+
+    async def _load_countries(self):
+        """Fetch from restcountries.com and map continents to country lists."""
+        url = "https://restcountries.com/v3.1/all"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url) as resp:
+                data = await resp.json()
+        continents = {}
+        for entry in data:
+            name = entry.get("name", {}).get("common")
+            conts = entry.get("continents")
+            if name and conts:
+                continents.setdefault(conts[0], []).append(name)
+        for c in continents:
+            continents[c].sort()
+        self.continents = continents
+
+    @app_commands.command(
+        name="countrychecklist",
+        description="Mark which countries you've been to, by continent."
+    )
+    async def countrychecklist(self, interaction: discord.Interaction):
+        await self._load_task
+        embed = discord.Embed(
+            title="Which countries have I been to?",
+            color=discord.Color.blurple()
+        )
+        for continent in self.continents:
+            embed.add_field(name=continent, value="None", inline=False)
+
+        view = CountryChecklistView(self.continents, interaction.user)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        # store the initial message reference for later editing
+        view.init_message = await interaction.original_response()
 
 async def setup(bot):
     await bot.add_cog(Utility(bot))
