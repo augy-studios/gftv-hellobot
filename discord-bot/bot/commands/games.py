@@ -24,6 +24,7 @@ class GameManager:
             "checkers": CheckersSession,
             "chess": ChessSession,
             "xiangqi": XiangqiSession,
+            "risk": RiskSession,
         }
         SessionClass = session_map.get(game_key)
         if not SessionClass:
@@ -688,6 +689,105 @@ class XiangqiMoveModal(discord.ui.Modal):
         await self.session.make_move(interaction, self.move.value.strip())
 
 # ----------------------------------------
+# RiskSession - Simplified territory conquest
+# ----------------------------------------
+class RiskSession(BaseSession):
+    TERRITORIES = [f"T{i+1}" for i in range(6)]
+    OWNER_EMOJIS = ["🔴", "🔵"]
+
+    def __init__(self, manager, interaction, opponent):
+        super().__init__(manager, interaction, opponent)
+        # assign random owners to 6 territories
+        owners = [i % 2 for i in range(len(self.TERRITORIES))]
+        random.shuffle(owners)
+        self.owners = owners  # list of 0 or 1
+
+    def render(self):
+        lines = []
+        for idx, name in enumerate(self.TERRITORIES):
+            emoji = self.OWNER_EMOJIS[self.owners[idx]]
+            lines.append(f"{name}: {emoji}")
+        embed = discord.Embed(
+            title="Risk",
+            description="\n".join(lines),
+            color=0x00AAAA
+        )
+        embed.set_footer(text=f"{self.players[self.current].mention}'s turn. Click Attack or End Turn.")
+        return embed
+
+    def build_view(self):
+        view = discord.ui.View(timeout=None)
+        view.add_item(RiskAttackButton(self))
+        view.add_item(RiskEndButton(self))
+        return view
+
+    async def on_interaction(self, interaction: discord.Interaction):
+        # handled by buttons
+        pass
+
+    async def attack(self, interaction, frm: str, to: str):
+        try:
+            i_from = self.TERRITORIES.index(frm.upper())
+            i_to = self.TERRITORIES.index(to.upper())
+        except ValueError:
+            return await interaction.response.send_message("Invalid territory names!", ephemeral=True)
+        if self.owners[i_from] != self.current:
+            return await interaction.response.send_message("You don't own the attack territory!", ephemeral=True)
+        if self.owners[i_to] == self.current:
+            return await interaction.response.send_message("You already own the target territory!", ephemeral=True)
+        # dice roll
+        attack_roll = random.randint(1, 6)
+        defend_roll = random.randint(1, 6)
+        result = f"You rolled {attack_roll}, defender rolled {defend_roll}. "
+        if attack_roll > defend_roll:
+            self.owners[i_to] = self.current
+            result += "You conquered it! 🎉"
+        else:
+            result += "Attack failed."
+        # check win
+        if all(o == self.current for o in self.owners):
+            embed = discord.Embed(
+                title="Risk", description=f"{self.players[self.current].mention} controls all territories and wins! 🎉", color=0xFFFF00
+            )
+            return await interaction.response.edit_message(embed=embed, view=None)
+        # next turn
+        self.next_player()
+        embed = self.render()
+        embed.set_footer(text=result)
+        await interaction.response.edit_message(embed=embed, view=self.build_view())
+
+    async def end_turn(self, interaction):
+        self.next_player()
+        embed = self.render()
+        await interaction.response.edit_message(embed=embed, view=self.build_view())
+
+class RiskAttackButton(discord.ui.Button):
+    def __init__(self, session):
+        super().__init__(style=discord.ButtonStyle.danger, label="Attack")
+        self.session = session
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(RiskAttackModal(self.session))
+
+class RiskAttackModal(discord.ui.Modal):
+    def __init__(self, session):
+        super().__init__(title="Risk Attack")
+        self.session = session
+        self.frm = discord.ui.TextInput(label="From (e.g. T1)")
+        self.to = discord.ui.TextInput(label="To (e.g. T2)")
+        self.add_item(self.frm)
+        self.add_item(self.to)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.session.attack(interaction, self.frm.value, self.to.value)
+
+class RiskEndButton(discord.ui.Button):
+    def __init__(self, session):
+        super().__init__(style=discord.ButtonStyle.secondary, label="End Turn")
+        self.session = session
+    async def callback(self, interaction: discord.Interaction):
+        await self.session.end_turn(interaction)
+
+# ----------------------------------------
 # Cog Definition
 # ----------------------------------------
 class Games(commands.Cog):
@@ -700,41 +800,54 @@ class Games(commands.Cog):
     @app_commands.describe(opponent="Opponent (optional)")
     async def tictactoe(self, interaction: discord.Interaction, opponent: discord.Member = None):
         await self.manager.start_game(interaction, "tictactoe", opponent)
+        await log_action(self.bot, interaction)
 
     @app_commands.command(name="connect4", description="Play Connect 4 with another user.")
     @app_commands.describe(opponent="Opponent (optional)")
     async def connect4(self, interaction: discord.Interaction, opponent: discord.Member = None):
         await self.manager.start_game(interaction, "connect4", opponent)
+        await log_action(self.bot, interaction)
 
     @app_commands.command(name="reversi", description="Play Reversi (Othello).")
     @app_commands.describe(opponent="Opponent (optional)")
     async def reversi(self, interaction: discord.Interaction, opponent: discord.Member = None):
         await self.manager.start_game(interaction, "reversi", opponent)
+        await log_action(self.bot, interaction)
 
     @app_commands.command(name="mancala", description="Play Mancala.")
     @app_commands.describe(opponent="Opponent (optional)")
     async def mancala(self, interaction: discord.Interaction, opponent: discord.Member = None):
         await self.manager.start_game(interaction, "mancala", opponent)
+        await log_action(self.bot, interaction)
 
     @app_commands.command(name="battleship", description="Play Battleship with another user or bot.")
     @app_commands.describe(opponent="The user you want to challenge (optional)")
     async def battleship(self, interaction: discord.Interaction, opponent: discord.Member = None):
         await self.manager.start_game(interaction, "battleship", opponent)
+        await log_action(self.bot, interaction)
 
     @app_commands.command(name="checkers", description="Play Checkers with another user or bot.")
     @app_commands.describe(opponent="The user you want to challenge (optional)")
     async def checkers(self, interaction: discord.Interaction, opponent: discord.Member = None):
         await self.manager.start_game(interaction, "checkers", opponent)
+        await log_action(self.bot, interaction)
 
     @app_commands.command(name="chess", description="Play Chess with another user or bot.")
     @app_commands.describe(opponent="Opponent (optional)")
     async def chess(self, interaction: discord.Interaction, opponent: discord.Member = None):
         await self.manager.start_game(interaction, "chess", opponent)
+        await log_action(self.bot, interaction)
 
     @app_commands.command(name="xiangqi", description="Play Xiangqi (Chinese Chess) with another user or bot.")
     @app_commands.describe(opponent="Opponent (optional)")
     async def xiangqi(self, interaction: discord.Interaction, opponent: discord.Member = None):
         await self.manager.start_game(interaction, "xiangqi", opponent)
+        await log_action(self.bot, interaction)
+
+    @app_commands.command(name="risk", description="Play simplified Risk territory conquest.")
+    async def risk(self, interaction: discord.Interaction):
+        await self.manager.start_game(interaction, "risk")
+        await log_action(self.bot, interaction)
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
