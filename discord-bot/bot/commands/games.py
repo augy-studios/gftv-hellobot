@@ -1,5 +1,7 @@
 import random
 import discord
+import chess
+import xiangqi
 from discord import app_commands
 from discord.ext import commands
 from core.logger import log_action
@@ -19,6 +21,9 @@ class GameManager:
             "reversi": ReversiSession,
             "mancala": MancalaSession,
             "battleship": BattleshipSession,
+            "checkers": CheckersSession,
+            "chess": ChessSession,
+            "xiangqi": XiangqiSession,
         }
         SessionClass = session_map.get(game_key)
         if not SessionClass:
@@ -31,8 +36,7 @@ class GameManager:
         self.sessions[message.id] = session
 
     async def handle_interaction(self, interaction: discord.Interaction):
-        msg_id = interaction.message.id
-        session = self.sessions.get(msg_id)
+        session = self.sessions.get(interaction.message.id)
         if session:
             await session.on_interaction(interaction)
         else:
@@ -47,10 +51,7 @@ class BaseSession:
         self.ctx = interaction
         self.channel = interaction.channel
         self.players = [interaction.user]
-        if opponent:
-            self.players.append(opponent)
-        else:
-            self.players.append(manager.bot.user)
+        self.players.append(opponent or manager.bot.user)
         self.current = 0
 
     async def start(self) -> discord.Message:
@@ -64,7 +65,6 @@ class BaseSession:
         self.message = await self.channel.send(embed=embed, view=view)
 
     async def on_interaction(self, interaction: discord.Interaction):
-        # overridden in subclasses
         pass
 
     def next_player(self):
@@ -390,10 +390,7 @@ class BattleshipSession(BaseSession):
             row = ''
             for c in range(self.SIZE):
                 if (r, c) in self.guesses[idx]:
-                    if (r, c) in self.ship_positions[opponent_idx]:
-                        row += '❌'
-                    else:
-                        row += '⚫'
+                    row += '❌' if (r, c) in self.ship_positions[opponent_idx] else '⚫'
                 else:
                     row += '⬜'
             lines.append(row)
@@ -409,17 +406,15 @@ class BattleshipSession(BaseSession):
         view = discord.ui.View(timeout=None)
         for r in range(self.SIZE):
             for c in range(self.SIZE):
-                label = f"{chr(65+r)}{c+1}"
+                label = f"{chr(65 + r)}{c + 1}"
                 view.add_item(BattleshipButton(r, c, self, label))
         return view
 
     async def on_interaction(self, interaction: discord.Interaction):
-        # handled in button callbacks
         pass
 
     async def handle_fire(self, interaction, r, c):
-        idx = self.current
-        opponent_idx = 1 - idx
+        idx, opponent_idx = self.current, 1 - self.current
         if interaction.user != self.players[idx]:
             return await interaction.response.send_message("Not your turn!", ephemeral=True)
         if (r, c) in self.guesses[idx]:
@@ -454,6 +449,245 @@ class BattleshipButton(discord.ui.Button):
         await self.session.handle_fire(interaction, self.r, self.c)
 
 # ----------------------------------------
+# Checkers
+# ----------------------------------------
+class CheckersSession(BaseSession):
+    SIZE = 8
+    SYMBOLS = {0: '⚫', 1: '🔴'}
+
+    def __init__(self, manager, interaction, opponent):
+        super().__init__(manager, interaction, opponent)
+        self.board = [[None] * self.SIZE for _ in range(self.SIZE)]
+        for r in range(self.SIZE):
+            for c in range(self.SIZE):
+                if (r + c) % 2 == 1:
+                    if r < 3:
+                        self.board[r][c] = 0
+                    elif r > 4:
+                        self.board[r][c] = 1
+        self.selected = None
+
+    def render(self):
+        lines = []
+        for r in range(self.SIZE):
+            row = ''
+            for c in range(self.SIZE):
+                piece = self.board[r][c]
+                if piece is None:
+                    row += '⬛' if (r + c) % 2 else '⬜'
+                else:
+                    row += self.SYMBOLS[piece]
+            lines.append(row)
+        embed = discord.Embed(
+            title="Checkers",
+            description='\n'.join(lines),
+            color=0x8B4513
+        )
+        if self.selected:
+            sr, sc = self.selected
+            embed.set_footer(text=f"Selected {chr(65+sc)}{sr+1}, choose destination.")
+        else:
+            embed.set_footer(text=f"{self.players[self.current].mention}'s turn ({self.SYMBOLS[self.current]}). Select piece.")
+        return embed
+
+    def build_view(self):
+        view = discord.ui.View(timeout=None)
+        for r in range(self.SIZE):
+            for c in range(self.SIZE):
+                if (r + c) % 2 == 1:
+                    label = f"{chr(65+c)}{r+1}"
+                    view.add_item(CheckersButton(r, c, self, label))
+        return view
+
+    async def on_interaction(self, interaction: discord.Interaction):
+        pass
+
+    async def handle_click(self, interaction, r, c):
+        if interaction.user != self.players[self.current]:
+            return await interaction.response.send_message("Not your turn!", ephemeral=True)
+        if self.selected is None:
+            if self.board[r][c] != self.current:
+                return await interaction.response.send_message("Select your own piece!", ephemeral=True)
+            moves = self.valid_moves(r, c)
+            if not moves:
+                return await interaction.response.send_message("No valid moves!", ephemeral=True)
+            self.selected = (r, c)
+            embed = self.render()
+            view = self.build_view()
+            return await interaction.response.edit_message(embed=embed, view=view)
+        else:
+            sr, sc = self.selected
+            if (r, c) not in self.valid_moves(sr, sc):
+                return await interaction.response.send_message("Invalid destination!", ephemeral=True)
+            self.board[sr][sc] = None
+            self.board[r][c] = self.current
+            if abs(r - sr) == 2:
+                mr = (r + sr) // 2
+                mc = (c + sc) // 2
+                self.board[mr][mc] = None
+            if not any(
+                self.board[i][j] == (1 - self.current)
+                for i in range(self.SIZE)
+                for j in range(self.SIZE)
+            ):
+                embed = discord.Embed(
+                    title="Checkers",
+                    description=f"{self.players[self.current].mention} wins! 🎉",
+                    color=0xFFFF00
+                )
+                return await interaction.response.edit_message(embed=embed, view=None)
+            self.selected = None
+            self.next_player()
+            embed = self.render()
+            view = self.build_view()
+            return await interaction.response.edit_message(embed=embed, view=view)
+
+    def valid_moves(self, r, c):
+        moves = []
+        direction = 1 if self.current == 0 else -1
+        for dc in (-1, 1):
+            nr, nc = r + direction, c + dc
+            if 0 <= nr < self.SIZE and 0 <= nc < self.SIZE and self.board[nr][nc] is None:
+                moves.append((nr, nc))
+            jr, jc = r + 2 * direction, c + 2 * dc
+            if (
+                0 <= jr < self.SIZE
+                and 0 <= jc < self.SIZE
+                and self.board[nr][nc] == 1 - self.current
+                and self.board[jr][jc] is None
+            ):
+                moves.append((jr, jc))
+        return moves
+
+class CheckersButton(discord.ui.Button):
+    def __init__(self, r, c, session, label):
+        super().__init__(style=discord.ButtonStyle.secondary, label=label, row=r)
+        self.r = r
+        self.c = c
+        self.session = session
+
+    async def callback(self, interaction: discord.Interaction):
+        await self.session.handle_click(interaction, self.r, self.c)
+
+# ----------------------------------------
+# ChessSession
+# ----------------------------------------
+class ChessSession(BaseSession):
+    def __init__(self, manager, interaction, opponent):
+        super().__init__(manager, interaction, opponent)
+        self.board = chess.Board()
+
+    def render(self):
+        board_str = self.board.unicode(invert_color=True)
+        embed = discord.Embed(
+            title="Chess",
+            description=f"```\n{board_str}\n```",
+            color=0xFFFFFF
+        )
+        embed.set_footer(text=f"{self.players[self.current].mention}'s turn. Click Move.")
+        return embed
+
+    def build_view(self):
+        view = discord.ui.View(timeout=None)
+        view.add_item(ChessMoveButton(self))
+        return view
+
+    async def on_interaction(self, interaction: discord.Interaction): pass
+
+    async def make_move(self, interaction, uci: str):
+        try:
+            move = chess.Move.from_uci(uci)
+            if move not in self.board.legal_moves:
+                raise ValueError
+            self.board.push(move)
+        except Exception:
+            return await interaction.response.send_message("Invalid move! Use UCI like e2e4.", ephemeral=True)
+        if self.board.is_checkmate():
+            return await interaction.response.edit_message(
+                embed=discord.Embed(title="Chess", description=f"Checkmate — {interaction.user.mention} wins! 🎉"), view=None)
+        if self.board.is_stalemate() or self.board.is_insufficient_material():
+            return await interaction.response.edit_message(
+                embed=discord.Embed(title="Chess", description="Draw! 🤝"), view=None)
+        self.next_player()
+        await interaction.response.edit_message(embed=self.render(), view=self.build_view())
+
+class ChessMoveButton(discord.ui.Button):
+    def __init__(self, session):
+        super().__init__(style=discord.ButtonStyle.primary, label="Move")
+        self.session = session
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(ChessMoveModal(self.session))
+
+class ChessMoveModal(discord.ui.Modal):
+    def __init__(self, session):
+        super().__init__(title="Enter Move (UCI)")
+        self.session = session
+        self.move = discord.ui.TextInput(label="Move", placeholder="e2e4", max_length=5)
+        self.add_item(self.move)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.session.make_move(interaction, self.move.value.strip())
+
+# ----------------------------------------
+# XiangqiSession
+# ----------------------------------------
+class XiangqiSession(BaseSession):
+    def __init__(self, manager, interaction, opponent):
+        super().__init__(manager, interaction, opponent)
+        self.board = xiangqi.Board()
+
+    def render(self):
+        board_str = str(self.board)
+        embed = discord.Embed(
+            title="Xiangqi",
+            description=f"```\n{board_str}\n```",
+            color=0xAAAAAA
+        )
+        embed.set_footer(text=f"{self.players[self.current].mention}'s turn. Click Move.")
+        return embed
+
+    def build_view(self):
+        view = discord.ui.View(timeout=None)
+        view.add_item(XiangqiMoveButton(self))
+        return view
+
+    async def on_interaction(self, interaction: discord.Interaction): pass
+
+    async def make_move(self, interaction, uci: str):
+        try:
+            move = xiangqi.Move.from_uci(uci)
+            if not self.board.is_legal(move):
+                raise ValueError
+            self.board.push(move)
+        except Exception:
+            return await interaction.response.send_message("Invalid Xiangqi move! UCI format.", ephemeral=True)
+        if self.board.is_checkmated():
+            return await interaction.response.edit_message(
+                embed=discord.Embed(title="Xiangqi", description=f"Checkmate — {interaction.user.mention} wins! 🎉"), view=None)
+        if self.board.is_stalemated():
+            return await interaction.response.edit_message(
+                embed=discord.Embed(title="Xiangqi", description="Draw! 🤝"), view=None)
+        self.next_player()
+        await interaction.response.edit_message(embed=self.render(), view=self.build_view())
+
+class XiangqiMoveButton(discord.ui.Button):
+    def __init__(self, session):
+        super().__init__(style=discord.ButtonStyle.primary, label="Move")
+        self.session = session
+    async def callback(self, interaction: discord.Interaction):
+        await interaction.response.send_modal(XiangqiMoveModal(self.session))
+
+class XiangqiMoveModal(discord.ui.Modal):
+    def __init__(self, session):
+        super().__init__(title="Enter Xiangqi Move (UCI)")
+        self.session = session
+        self.move = discord.ui.TextInput(label="Move", placeholder="h2e2", max_length=5)
+        self.add_item(self.move)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        await self.session.make_move(interaction, self.move.value.strip())
+
+# ----------------------------------------
 # Cog Definition
 # ----------------------------------------
 class Games(commands.Cog):
@@ -486,6 +720,21 @@ class Games(commands.Cog):
     @app_commands.describe(opponent="The user you want to challenge (optional)")
     async def battleship(self, interaction: discord.Interaction, opponent: discord.Member = None):
         await self.manager.start_game(interaction, "battleship", opponent)
+
+    @app_commands.command(name="checkers", description="Play Checkers with another user or bot.")
+    @app_commands.describe(opponent="The user you want to challenge (optional)")
+    async def checkers(self, interaction: discord.Interaction, opponent: discord.Member = None):
+        await self.manager.start_game(interaction, "checkers", opponent)
+
+    @app_commands.command(name="chess", description="Play Chess with another user or bot.")
+    @app_commands.describe(opponent="Opponent (optional)")
+    async def chess(self, interaction: discord.Interaction, opponent: discord.Member = None):
+        await self.manager.start_game(interaction, "chess", opponent)
+
+    @app_commands.command(name="xiangqi", description="Play Xiangqi (Chinese Chess) with another user or bot.")
+    @app_commands.describe(opponent="Opponent (optional)")
+    async def xiangqi(self, interaction: discord.Interaction, opponent: discord.Member = None):
+        await self.manager.start_game(interaction, "xiangqi", opponent)
 
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
