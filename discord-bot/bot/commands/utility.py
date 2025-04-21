@@ -176,6 +176,51 @@ class DoneButton(discord.ui.Button):
         # broadcast publicly
         await msg.channel.send(embed=embed)
 
+# -------------------------
+# ----- 3Dify Handler -----
+# -------------------------
+def convert_to_3d(image_bytes: bytes, thickness: int, output_type: str) -> Tuple[bytes, str]:
+    """
+    Converts a 2D image into a 3D mesh by voxelizing based on grayscale height,
+    then exports to PNG, GIF, OBJ, or STL. Returns raw bytes and a suggested filename.
+    """
+    # Load image as grayscale
+    arr = np.frombuffer(image_bytes, np.uint8)
+    img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
+    # Map intensities [0,255] to height levels [0, thickness]
+    hmap = (img.astype(np.float32) / 255.0 * thickness).astype(np.int32)
+    h, w = hmap.shape
+    # Build voxel grid
+    vol = np.zeros((h, w, thickness), dtype=bool)
+    for z in range(thickness):
+        vol[:, :, z] = hmap > z
+    # Create mesh via marching cubes (requires scikit-image)
+    mesh = trimesh.voxel.ops.matrix_to_marching_cubes(vol)
+
+    # OBJ / STL export
+    if output_type in ('obj', 'stl'):
+        mesh_bytes = mesh.export(file_type=output_type)
+        return mesh_bytes, f"output.{output_type}"
+
+    # Render scene for images
+    scene = mesh.scene()
+    if output_type == 'png':
+        img_bytes = scene.save_image(resolution=(512, 512))
+        return img_bytes, "output.png"
+    elif output_type == 'gif':
+        frames = []
+        for angle in range(0, 360, 60):
+            scene.camera.transform = trimesh.transformations.euler_matrix(0, 0, np.radians(angle))
+            frame_bytes = scene.save_image(resolution=(512, 512))
+            frames.append(Image.open(BytesIO(frame_bytes)))
+        gif_buf = BytesIO()
+        frames[0].save(gif_buf, format='GIF', save_all=True,
+                    append_images=frames[1:], duration=100, loop=0)
+        return gif_buf.getvalue(), "output.gif"
+
+    # Fallback
+    return image_bytes, "output.png"
+
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -347,51 +392,6 @@ class Utility(commands.Cog):
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
         # store the initial message reference for later editing
         view.init_message = await interaction.original_response()
-    
-    # -------------------------
-    # ----- 3Dify Handler -----
-    # -------------------------
-    def convert_to_3d(image_bytes: bytes, thickness: int, output_type: str) -> Tuple[bytes, str]:
-        """
-        Converts a 2D image into a 3D mesh by voxelizing based on grayscale height,
-        then exports to PNG, GIF, OBJ, or STL.
-        """
-        # Load image as grayscale
-        arr = np.frombuffer(image_bytes, np.uint8)
-        img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
-        # Map intensities [0,255] to height levels [0, thickness]
-        hmap = (img.astype(np.float32) / 255.0 * thickness).astype(np.int32)
-        h, w = hmap.shape
-        # Build voxel grid: vol[x,y,z] = True if hmap[x,y] > z
-        vol = np.zeros((h, w, thickness), dtype=bool)
-        for z in range(thickness):
-            vol[:, :, z] = hmap > z
-        # Create mesh via marching cubes
-        mesh = trimesh.voxel.ops.matrix_to_marching_cubes(vol)
-        # Export based on requested type
-        if output_type in ('obj', 'stl'):
-            mesh_bytes = mesh.export(file_type=output_type)
-            if isinstance(mesh_bytes, str):  # Ensure the output is bytes
-                mesh_bytes = mesh_bytes.encode('utf-8')
-            filename = f"3dified_object.{output_type}"
-            return mesh_bytes, filename
-        # Render scene image(s)
-        scene = mesh.scene()
-        if output_type == 'png':
-            image_bytes_out = scene.save_image(resolution=(512, 512))
-            return image_bytes_out, "3dified.png"
-        elif output_type == 'gif':
-            frames = []
-            for angle in range(0, 360, 60):
-                # rotate camera
-                scene.camera.transform = trimesh.transformations.euler_matrix(0, 0, np.radians(angle))
-                img_bytes = scene.save_image(resolution=(512, 512))
-                frames.append(Image.open(BytesIO(img_bytes)))
-            gif_io = BytesIO()
-            frames[0].save(gif_io, format='GIF', save_all=True, append_images=frames[1:], duration=100, loop=0)
-            return gif_io.getvalue(), "3dified.gif"
-        # Fallback: return original image
-        return bytes(image_bytes), "3dified.png"
 
     @app_commands.command(name="3dify", description="Convert an image into a 3D object")
     @app_commands.describe(
@@ -423,40 +423,20 @@ class Utility(commands.Cog):
         """
         await interaction.response.defer()
 
-        # Read the image data
-        image_data = await image.read()
-
-        # Open the image using Pillow
-        with Image.open(BytesIO(image_data)) as img:
-            # Resize the image to a max of 500px in either width or height
-            max_size = (500, 500)
-            img.thumbnail(max_size, Image.Resampling.LANCZOS)
-
-            # Save the resized image back to bytes
-            resized_image_io = BytesIO()
-            img.save(resized_image_io, format=img.format)
-            resized_image_io.seek(0)
-            resized_image_data = resized_image_io.read()
-
-        # Pass the resized image to the 3D conversion function
-        result_bytes, filename = convert_to_3d(
-            image_bytes=resized_image_data,
+        # Read and process
+        img_bytes = await image.read()
+        result_bytes, sugg_name = convert_to_3d(
+            image_bytes=img_bytes,
             thickness=thickness,
             output_type=output_type.value,
         )
+        # Construct new filename from original
+        base_name = image.filename.rsplit('.', 1)[0]
+        ext = sugg_name.rsplit('.', 1)[-1]
+        new_filename = f"{base_name}_3dified.{ext}"
 
-        # Check file size limit
-        file_size_limit = 50 * 1024 * 1024  # 50 MB limit for bot accounts
-        if len(result_bytes) > file_size_limit:
-            await interaction.followup.send(
-                "❌ The generated file is too large to upload to Discord. "
-                "Please try reducing the image size or thickness.",
-                ephemeral=True
-            )
-            return
-
-        # Send the file to the user
-        file = discord.File(io.BytesIO(result_bytes), filename=filename)
+        # Send file
+        file = discord.File(io.BytesIO(result_bytes), filename=new_filename)
         await interaction.followup.send(file=file)
         await log_action(self.bot, interaction)
 
@@ -585,6 +565,16 @@ class Utility(commands.Cog):
             )
             link = self.upload_to_transfersh(zip_path)
             await interaction.followup.send(f"Here's your file: {link}")
+        await log_action(self.bot, interaction)
+
+        # clean up
+        shutil.rmtree(base_output_dir, ignore_errors=True)
+        os.remove(zip_path)
+        await asyncio.sleep(5)
+        if os.path.exists(zip_path):
+            os.remove(zip_path)
+        if os.path.exists(base_output_dir):
+            shutil.rmtree(base_output_dir, ignore_errors=True)
 
 async def setup(bot):
     await bot.add_cog(Utility(bot))
