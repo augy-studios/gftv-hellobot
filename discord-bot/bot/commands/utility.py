@@ -12,18 +12,22 @@ import random
 import re
 import math
 import aiohttp
+import logging
 import pdfkit
 import imgkit
 import zipfile
 from bs4 import BeautifulSoup
 import shutil
 import asyncio
+import subprocess
+import shlex
 import os
 import requests
 import urllib.parse
 from urllib.parse import urljoin, urlparse
 from core.logger import log_action
 
+logger = logging.getLogger(__name__)
 
 # --------------------------
 # Country Checklist Handlers
@@ -33,20 +37,19 @@ class CountryChecklistView(discord.ui.View):
         super().__init__(timeout=None)
         self.continents = continents
         self.owner = owner
-        self.init_message: discord.Message
-        self.selections: dict[str, set[str]] = {c: set() for c in continents}
+        self.init_message: discord.Message  # set after send
+        self.selections = {c: set() for c in continents}
         for c in continents:
             self.add_item(ContinentButton(c))
         self.add_item(DoneButton())
 
     async def update_embed(self, interaction: discord.Interaction):
-        # edit the original checklist embed
+        # Edit the stored embed message
         msg = self.init_message
         embed = msg.embeds[0]
         for idx, cont in enumerate(self.continents):
-            chosen = sorted(self.selections[cont])
-            value = ", ".join(chosen) if chosen else "None"
-            embed.set_field_at(idx, name=cont, value=value, inline=True)
+            chosen = sorted(self.selections.get(cont, []))
+            embed.set_field_at(idx, name=cont, value=(", ".join(chosen) if chosen else "None"), inline=False)
         await msg.edit(embed=embed, view=self)
 
 class ContinentButton(discord.ui.Button):
@@ -59,7 +62,7 @@ class ContinentButton(discord.ui.Button):
         if interaction.user.id != view.owner.id:
             return await interaction.response.send_message("This isn't yours.", ephemeral=True)
 
-        countries = view.continents[self.continent]
+        countries = view.continents.get(self.continent, [])
         paged = PaginatedSelectView(countries, self.continent, view)
         await interaction.response.send_message(
             f"Select in **{self.continent}** (page 1/{paged.total_pages}):",
@@ -68,12 +71,7 @@ class ContinentButton(discord.ui.Button):
         )
 
 class PaginatedSelectView(discord.ui.View):
-    def __init__(
-        self,
-        options: list[str],
-        continent: str,
-        parent: CountryChecklistView
-    ):
+    def __init__(self, options: list[str], continent: str, parent: CountryChecklistView):
         super().__init__(timeout=None)
         self.options = options
         self.continent = continent
@@ -89,17 +87,17 @@ class PaginatedSelectView(discord.ui.View):
         self.clear_items()
         opts = [discord.SelectOption(label=o, value=o) for o in self.pages[self.page]]
         self.add_item(PageSelect(opts, self))
-        prev_btn = PrevButton()
-        prev_btn.disabled = self.page == 0
+        prev_btn = PrevButton(); prev_btn.disabled = self.page == 0
         self.add_item(prev_btn)
-        next_btn = NextButton()
-        next_btn.disabled = self.page == self.total_pages - 1
+        next_btn = NextButton(); next_btn.disabled = self.page == self.total_pages - 1
         self.add_item(next_btn)
         self.add_item(SubmitButton(self.continent, self.parent))
 
     async def refresh(self, interaction: discord.Interaction):
-        content = f"Select in **{self.continent}** (page {self.page+1}/{self.total_pages}):"
-        await interaction.response.edit_message(content=content, view=self)
+        await interaction.response.edit_message(
+            content=f"Select in **{self.continent}** (page {self.page+1}/{self.total_pages}):",
+            view=self
+        )
 
 class PageSelect(discord.ui.Select):
     def __init__(self, options: list[discord.SelectOption], view: PaginatedSelectView):
@@ -111,74 +109,52 @@ class PageSelect(discord.ui.Select):
         await interaction.response.defer()
 
 class PrevButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(style=discord.ButtonStyle.secondary, label="◀️")
-
+    def __init__(self): super().__init__(style=discord.ButtonStyle.secondary, label="◀️")
     async def callback(self, interaction: discord.Interaction):
         view: PaginatedSelectView = self.view  # type: ignore
-        view.page -= 1
-        view.update_components()
+        view.page -= 1; view.update_components()
         await view.refresh(interaction)
 
 class NextButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(style=discord.ButtonStyle.secondary, label="▶️")
-
+    def __init__(self): super().__init__(style=discord.ButtonStyle.secondary, label="▶️")
     async def callback(self, interaction: discord.Interaction):
         view: PaginatedSelectView = self.view  # type: ignore
-        view.page += 1
-        view.update_components()
+        view.page += 1; view.update_components()
         await view.refresh(interaction)
 
 class SubmitButton(discord.ui.Button):
     def __init__(self, continent: str, parent: CountryChecklistView):
         super().__init__(style=discord.ButtonStyle.success, label="Submit")
-        self.continent = continent
-        self.parent = parent
-
+        self.continent = continent; self.parent = parent
     async def callback(self, interaction: discord.Interaction):
-        # acknowledge interaction to avoid double response
         await interaction.response.defer(ephemeral=True)
         pview: PaginatedSelectView = self.view  # type: ignore
-        # combine selections from all pages
-        selected = set().union(*pview.page_selections.values()) if pview.page_selections else set()
-        self.parent.selections[self.continent] = selected
-        # update the main embed checklist
+        sel = set().union(*pview.page_selections.values()) if pview.page_selections else set()
+        self.parent.selections[self.continent] = sel
         await self.parent.update_embed(interaction)
-        # remove the ephemeral selection view
         await interaction.message.edit(content="✅ Selection saved.", view=None)
 
 class DoneButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(style=discord.ButtonStyle.success, label="Done")
-
+    def __init__(self): super().__init__(style=discord.ButtonStyle.success, label="Done")
     async def callback(self, interaction: discord.Interaction):
         view: CountryChecklistView = self.view  # type: ignore
         if interaction.user.id != view.owner.id:
             return await interaction.response.send_message("This isn't yours.", ephemeral=True)
-
         total_selected = sum(len(v) for v in view.selections.values())
         total_countries = sum(len(v) for v in view.continents.values())
-        pct = (total_selected / total_countries * 100) if total_countries else 0
-
-        # edit the original ephemeral message
+        pct = (total_selected/total_countries*100) if total_countries else 0
         msg = view.init_message
         embed = msg.embeds[0]
-        embed.add_field(
-            name="Results",
-            value=(
-                f"{view.owner.mention} has been to **{total_selected}**/"
-                f"**{total_countries}** ({pct:.2f}%) of the world!"
-            ),
-            inline=False
-        )
+        embed.add_field(name="Results",
+                        value=f"{view.owner.mention} has been to **{total_selected}**/**{total_countries}** ({pct:.2f}%) countries!",
+                        inline=False)
         await msg.edit(embed=embed, view=None)
-        # broadcast publicly
         await msg.channel.send(embed=embed)
 
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # Kick off an initial load
         self._load_task = bot.loop.create_task(self._load_countries())
         self.valid_users = [269080651599314944, 292864211825197056, 543846099971080192]
         # These sets help avoid downloading the same page or resource more than once.
@@ -315,11 +291,19 @@ class Utility(commands.Cog):
     # Country Checklist Handler
     # -------------------------
     async def _load_countries(self):
-        """Fetch from restcountries.com and map continents to country lists."""
+        """Fetch from restcountries.com and map continents to country lists, handling errors."""
         url = "https://restcountries.com/v3.1/all"
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url) as resp:
-                data = await resp.json()
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        raise ValueError(f"Bad status: {resp.status}")
+                    data = await resp.json(content_type=None)
+        except Exception as e:
+            logger.error(f"Failed to load country data: {e}")
+            self.continents = {}
+            return
+
         continents = {}
         for entry in data:
             name = entry.get("name", {}).get("common")
@@ -329,24 +313,33 @@ class Utility(commands.Cog):
         for c in continents:
             continents[c].sort()
         self.continents = continents
+        logger.info(f"Loaded {sum(len(v) for v in continents.values())} countries across {len(continents)} continents.")
 
     @app_commands.command(
         name="countrychecklist",
         description="Mark which countries you've been to, by continent."
     )
     async def countrychecklist(self, interaction: discord.Interaction):
+        # Wait for the initial load; retry on failure
         await self._load_task
+        if not getattr(self, 'continents', None):
+            await self._load_countries()
+
+        # Build the embed
         embed = discord.Embed(
             title="Which countries have I been to?",
             color=discord.Color.blurple()
         )
-        for continent in self.continents:
-            embed.add_field(name=continent, value="None", inline=True)
+        if not self.continents:
+            embed.description = "⚠️ Country data unavailable. Please try again later."
+        else:
+            for cont in self.continents:
+                embed.add_field(name=cont, value="None", inline=False)
 
         view = CountryChecklistView(self.continents, interaction.user)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
-        # store the initial message reference for later editing
         view.init_message = await interaction.original_response()
+        await log_action(self.bot, interaction)
 
     # -------------------------
     # ----- 3Dify Handler -----
@@ -446,15 +439,14 @@ class Utility(commands.Cog):
     # -------------------------
     def get_local_path(self, url: str, base_output_dir: str) -> str:
         parsed = requests.utils.urlparse(url)
-        path = parsed.path
-        if path.endswith("/") or path == "":
+        path = parsed.path or "/"
+        if path.endswith("/"):
             path = os.path.join(path, "index.html")
-        local_path = os.path.join(base_output_dir, parsed.netloc, path.lstrip("/"))
-        return local_path
+        return os.path.join(base_output_dir, parsed.netloc, path.lstrip("/"))
 
     def download_file(self, url: str, local_path: str) -> bool:
         try:
-            response = requests.get(url, stream=True)
+            response = requests.get(url, stream=True, timeout=10)
             response.raise_for_status()
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
             with open(local_path, "wb") as f:
@@ -470,45 +462,35 @@ class Utility(commands.Cog):
         if url in self.visited_pages:
             return
         self.visited_pages.add(url)
-        print(f"Scraping: {url}")
-
         try:
-            resp = requests.get(url)
+            resp = requests.get(url, timeout=10)
             resp.raise_for_status()
         except Exception as e:
             print(f"Error accessing {url}: {e}")
             return
-
-        ctype = resp.headers.get("Content-Type", "")
-        if "text/html" not in ctype:
-            local_path = self.get_local_path(url, base_output_dir)
-            self.download_file(url, local_path)
+        if "text/html" not in resp.headers.get("Content-Type", ""):
+            self.download_file(url, self.get_local_path(url, base_output_dir))
             return
-
-        soup = BeautifulSoup(resp.text, "html.parser")
+        soup = BeautifulSoup(resp.text, "lxml")
 
         def process_resource(tag, attr):
             if not tag.has_attr(attr):
                 return
             orig = tag[attr]
             resource_url = requests.compat.urljoin(url, orig)
-            local_res_path = self.get_local_path(resource_url, base_output_dir)
+            local_res = self.get_local_path(resource_url, base_output_dir)
             if resource_url not in self.downloaded_resources:
-                if self.download_file(resource_url, local_res_path):
-                    self.downloaded_resources[resource_url] = local_res_path
-            local_page_path = self.get_local_path(url, base_output_dir)
-            rel = os.path.relpath(local_res_path, os.path.dirname(local_page_path))
-            tag[attr] = rel
+                if self.download_file(resource_url, local_res):
+                    self.downloaded_resources[resource_url] = local_res
+            tag[attr] = os.path.relpath(local_res,
+                                        os.path.dirname(self.get_local_path(url, base_output_dir)))
 
-        for img in soup.find_all("img", src=True):
-            process_resource(img, "src")
-        for script in soup.find_all("script", src=True):
-            process_resource(script, "src")
+        for img in soup.find_all("img", src=True): process_resource(img, "src")
+        for script in soup.find_all("script", src=True): process_resource(script, "src")
         for link in soup.find_all("link", href=True):
             if link.get("rel") and "stylesheet" in link.get("rel"):
                 process_resource(link, "href")
-        for media in soup.find_all(["video", "audio"], src=True):
-            process_resource(media, "src")
+        for media in soup.find_all(["video", "audio"], src=True): process_resource(media, "src")
 
         local_html = self.get_local_path(url, base_output_dir)
         os.makedirs(os.path.dirname(local_html), exist_ok=True)
@@ -516,66 +498,57 @@ class Utility(commands.Cog):
             f.write(str(soup))
 
         for a in soup.find_all("a", href=True):
-            link = requests.compat.urljoin(url, a["href"])
-            if requests.utils.urlparse(link).netloc == base_domain:
-                self.scrape_page(link, base_output_dir, base_domain)
+            next_url = requests.compat.urljoin(url, a["href"])
+            if requests.utils.urlparse(next_url).netloc == base_domain:
+                self.scrape_page(next_url, base_output_dir, base_domain)
 
-    def upload_to_transfersh(self, file_path: str) -> str:
-        filename = os.path.basename(file_path)
-        with open(file_path, 'rb') as f:
-            resp = requests.put(f'https://transfer.sh/{filename}', data=f)
-            resp.raise_for_status()
-            return resp.text.strip()
+    def upload_with_npm_cli(self, file_path: str) -> str:
+        """
+        Uploads via uploadr-cli (npm package). Requires `npm install -g uploadr-cli`.
+        """
+        cmd = f"uploadr upload {shlex.quote(file_path)}"
+        proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
+        if proc.returncode != 0:
+            raise RuntimeError(f"uploadr-cli failed: {proc.stderr.strip()}")
+        return proc.stdout.strip()
 
-    @app_commands.command(
-        name="scrape",
-        description="Download a site (HTML + resources) and package it locally, then return a ZIP."
-    )
+    def perform_scrape_and_package(self, url: str) -> str:
+        base_output_dir = "scraped_site"
+        shutil.rmtree(base_output_dir, ignore_errors=True)
+        self.visited_pages.clear()
+        self.downloaded_resources.clear()
+        os.makedirs(base_output_dir, exist_ok=True)
+        self.scrape_page(url, base_output_dir, requests.utils.urlparse(url).netloc)
+        return shutil.make_archive(base_output_dir, 'zip', base_output_dir)
+
+    @app_commands.command(name="scrape",
+                          description="Scrape and ZIP a site, then send or upload via uploadr-cli.")
     async def scrape(self, interaction: Interaction, url: str):
         if interaction.user.id not in self.valid_users:
             await interaction.response.send_message(
-                "You do not have permission to execute this command.",
-                ephemeral=True
+                "You do not have permission to execute this command.", ephemeral=True
             )
             return
-
-        await interaction.response.send_message(
-            "Scraping started... this may take some time.",
-            ephemeral=True
-        )
-
-        base_output_dir = "scraped_site"
-        os.makedirs(base_output_dir, exist_ok=True)
-        domain = requests.utils.urlparse(url).netloc
-        self.visited_pages.clear()
-        self.downloaded_resources.clear()
-
-        self.scrape_page(url, base_output_dir, domain)
-
-        # create ZIP archive
-        zip_path = shutil.make_archive(base_output_dir, 'zip', base_output_dir)
-        size = os.path.getsize(zip_path)
-
-        if size <= 50 * 1024 * 1024:
-            # under 50MB – send directly
-            await interaction.followup.send(file=discord.File(zip_path))
-        else:
-            # over 50MB – upload externally
+        await interaction.response.defer(thinking=True, ephemeral=True)
+        zip_path = ''
+        try:
+            zip_path = await asyncio.to_thread(self.perform_scrape_and_package, url)
+            size = os.path.getsize(zip_path)
+            if size <= 500 * 1024 * 1024:
+                await interaction.followup.send(file=discord.File(zip_path))
+                return
+            await interaction.followup.send("Archive exceeds 500MB, uploading via uploadr-cli...")
+            link = await asyncio.to_thread(self.upload_with_npm_cli, zip_path)
+            await interaction.followup.send(f"Uploaded via uploadr-cli: {link}")
+        except Exception as e:
             await interaction.followup.send(
-                "Archive exceeds 50MB, uploading to transfer.sh..."
+                f"Upload failed: {e}\nPlease ensure uploadr-cli is installed and in your PATH, or download the ZIP directly."
             )
-            link = self.upload_to_transfersh(zip_path)
-            await interaction.followup.send(f"Here's your file: {link}")
+        finally:
+            await asyncio.to_thread(shutil.rmtree, "scraped_site", True)
+            if zip_path and os.path.exists(zip_path):
+                await asyncio.to_thread(os.remove, zip_path)
         await log_action(self.bot, interaction)
-
-        # clean up
-        shutil.rmtree(base_output_dir, ignore_errors=True)
-        os.remove(zip_path)
-        await asyncio.sleep(5)
-        if os.path.exists(zip_path):
-            os.remove(zip_path)
-        if os.path.exists(base_output_dir):
-            shutil.rmtree(base_output_dir, ignore_errors=True)
 
 async def setup(bot):
     await bot.add_cog(Utility(bot))
