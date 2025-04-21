@@ -176,51 +176,6 @@ class DoneButton(discord.ui.Button):
         # broadcast publicly
         await msg.channel.send(embed=embed)
 
-# -------------------------
-# ----- 3Dify Handler -----
-# -------------------------
-def convert_to_3d(image_bytes: bytes, thickness: int, output_type: str) -> Tuple[bytes, str]:
-    """
-    Converts a 2D image into a 3D mesh by voxelizing based on grayscale height,
-    then exports to PNG, GIF, OBJ, or STL. Returns raw bytes and a suggested filename.
-    """
-    # Load image as grayscale
-    arr = np.frombuffer(image_bytes, np.uint8)
-    img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
-    # Map intensities [0,255] to height levels [0, thickness]
-    hmap = (img.astype(np.float32) / 255.0 * thickness).astype(np.int32)
-    h, w = hmap.shape
-    # Build voxel grid
-    vol = np.zeros((h, w, thickness), dtype=bool)
-    for z in range(thickness):
-        vol[:, :, z] = hmap > z
-    # Create mesh via marching cubes (requires scikit-image)
-    mesh = trimesh.voxel.ops.matrix_to_marching_cubes(vol)
-
-    # OBJ / STL export
-    if output_type in ('obj', 'stl'):
-        mesh_bytes = mesh.export(file_type=output_type)
-        return mesh_bytes, f"output.{output_type}"
-
-    # Render scene for images
-    scene = mesh.scene()
-    if output_type == 'png':
-        img_bytes = scene.save_image(resolution=(512, 512))
-        return img_bytes, "output.png"
-    elif output_type == 'gif':
-        frames = []
-        for angle in range(0, 360, 60):
-            scene.camera.transform = trimesh.transformations.euler_matrix(0, 0, np.radians(angle))
-            frame_bytes = scene.save_image(resolution=(512, 512))
-            frames.append(Image.open(BytesIO(frame_bytes)))
-        gif_buf = BytesIO()
-        frames[0].save(gif_buf, format='GIF', save_all=True,
-                    append_images=frames[1:], duration=100, loop=0)
-        return gif_buf.getvalue(), "output.gif"
-
-    # Fallback
-    return image_bytes, "output.png"
-
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -393,6 +348,52 @@ class Utility(commands.Cog):
         # store the initial message reference for later editing
         view.init_message = await interaction.original_response()
 
+    # -------------------------
+    # ----- 3Dify Handler -----
+    # -------------------------
+    @staticmethod
+    def convert_to_3d(image_bytes: bytes, thickness: int, output_type: str) -> Tuple[bytes, str]:
+        """
+        Converts a 2D image into a 3D mesh by voxelizing based on grayscale height,
+        then exports to PNG, GIF, OBJ, or STL. Returns raw bytes and a suggested filename.
+        """
+        # Load image as grayscale
+        arr = np.frombuffer(image_bytes, np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
+        # Map intensities [0,255] to height levels [0, thickness]
+        hmap = (img.astype(np.float32) / 255.0 * thickness).astype(np.int32)
+        h, w = hmap.shape
+        # Build voxel grid
+        vol = np.zeros((h, w, thickness), dtype=bool)
+        for z in range(thickness):
+            vol[:, :, z] = hmap > z
+        # Create mesh via marching cubes (requires scikit-image)
+        mesh = trimesh.voxel.ops.matrix_to_marching_cubes(vol)
+
+        # OBJ / STL export
+        if output_type in ('obj', 'stl'):
+            mesh_bytes = mesh.export(file_type=output_type)
+            return mesh_bytes, f"output.{output_type}"
+
+        # Render scene for images
+        scene = mesh.scene()
+        if output_type == 'png':
+            img_bytes = scene.save_image(resolution=(512, 512))
+            return img_bytes, "output.png"
+        elif output_type == 'gif':
+            frames = []
+            for angle in range(0, 360, 60):
+                scene.camera.transform = trimesh.transformations.euler_matrix(0, 0, np.radians(angle))
+                frame_bytes = scene.save_image(resolution=(512, 512))
+                frames.append(Image.open(BytesIO(frame_bytes)))
+            gif_buf = BytesIO()
+            frames[0].save(gif_buf, format='GIF', save_all=True,
+                           append_images=frames[1:], duration=100, loop=0)
+            return gif_buf.getvalue(), "output.gif"
+
+        # Fallback
+        return image_bytes, "output.png"
+
     @app_commands.command(name="3dify", description="Convert an image into a 3D object")
     @app_commands.describe(
         image="The image file to convert",
@@ -425,7 +426,7 @@ class Utility(commands.Cog):
 
         # Read and process
         img_bytes = await image.read()
-        result_bytes, sugg_name = convert_to_3d(
+        result_bytes, sugg_name = self.convert_to_3d(
             image_bytes=img_bytes,
             thickness=thickness,
             output_type=output_type.value,
