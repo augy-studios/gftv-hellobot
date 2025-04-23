@@ -81,7 +81,7 @@ class CountryChecklistView(discord.ui.View):
         embed = msg.embeds[0]
         for idx, cont in enumerate(self.continents):
             chosen = sorted(self.selections.get(cont, []))
-            embed.set_field_at(idx, name=cont, value=(", ".join(chosen) if chosen else "None"), inline=False)
+            embed.set_field_at(idx, name=cont, value=(", ".join(chosen) if chosen else "None"), inline=True)
         await msg.edit(embed=embed, view=self)
 
 class ContinentButton(discord.ui.Button):
@@ -178,7 +178,7 @@ class DoneButton(discord.ui.Button):
         msg = view.init_message
         embed = msg.embeds[0]
         embed.add_field(name="Results",
-                        value=f"{view.owner.mention} has been to **{total_selected}**/**{total_countries}** ({pct:.2f}%) countries!",
+                        value=f"{view.owner.mention} has been to **{total_selected}**/**{total_countries}** ({pct:.2f}%) of the world!",
                         inline=False)
         await msg.edit(embed=embed, view=None)
         await msg.channel.send(embed=embed)
@@ -402,7 +402,7 @@ class Utility(commands.Cog):
             embed.description = "⚠️ Country data unavailable. Please try again later."
         else:
             for cont in self.continents:
-                embed.add_field(name=cont, value="None", inline=False)
+                embed.add_field(name=cont, value="None", inline=True)
 
         view = CountryChecklistView(self.continents, interaction.user)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
