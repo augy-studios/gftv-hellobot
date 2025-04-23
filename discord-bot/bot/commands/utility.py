@@ -7,6 +7,9 @@ from PIL import Image
 import discord
 from discord.ext import commands
 from discord import app_commands, Interaction
+from gtts import gTTS
+from deep_translator import GoogleTranslator
+from langdetect import detect, DetectorFactory
 from typing import Tuple
 import random
 import re
@@ -28,6 +31,35 @@ from urllib.parse import urljoin, urlparse
 from core.logger import log_action
 
 logger = logging.getLogger(__name__)
+
+# Ensure consistent detection
+DetectorFactory.seed = 0
+
+# Top 20 most used languages mapping to codes
+top20_language_codes = {
+    "English": "en",
+    "Chinese": "zh-cn",
+    "Spanish": "es",
+    "Hindi": "hi",
+    "Arabic": "ar",
+    "Bengali": "bn",
+    "Portuguese": "pt",
+    "Russian": "ru",
+    "Japanese": "ja",
+    "Punjabi": "pa",
+    "Marathi": "mr",
+    "Telugu": "te",
+    "Turkish": "tr",
+    "Korean": "ko",
+    "French": "fr",
+    "German": "de",
+    "Vietnamese": "vi",
+    "Tamil": "ta",
+    "Urdu": "ur",
+    "Javanese": "jv"
+}
+
+top20_languages = list(top20_language_codes.keys())
 
 # --------------------------
 # Country Checklist Handlers
@@ -151,15 +183,51 @@ class DoneButton(discord.ui.Button):
         await msg.edit(embed=embed, view=None)
         await msg.channel.send(embed=embed)
 
+# --------------------------
+# Translation Handlers
+# --------------------------
+class TranslateView(discord.ui.View):
+    def __init__(self, original_text: str, translated_text: str, src_code: str, dest_code: str):
+        super().__init__(timeout=None)
+        self.original_text = original_text
+        self.translated_text = translated_text
+        self.src_code = src_code
+        self.dest_code = dest_code
+
+    @discord.ui.button(label="🔊 Listen to original", style=discord.ButtonStyle.primary)
+    async def listen_original(self, interaction: discord.Interaction, button: discord.ui.Button):
+        # Use detected or specified language code for original
+        tts = gTTS(text=self.original_text, lang=self.src_code)
+        fp = BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        file = discord.File(fp, filename="original.mp3")
+        await interaction.response.send_message(content="Original text audio:", file=file)
+
+    @discord.ui.button(label="🔊 Listen to translated", style=discord.ButtonStyle.primary)
+    async def listen_translated(self, interaction: discord.Interaction, button: discord.ui.Button):
+        tts = gTTS(text=self.translated_text, lang=self.dest_code)
+        fp = BytesIO()
+        tts.write_to_fp(fp)
+        fp.seek(0)
+        file = discord.File(fp, filename="translated.mp3")
+        await interaction.response.send_message(content="Translated text audio:", file=file)
+
 class Utility(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         # Kick off an initial load
         self._load_task = bot.loop.create_task(self._load_countries())
         self.valid_users = [269080651599314944, 292864211825197056, 543846099971080192]
+
         # These sets help avoid downloading the same page or resource more than once.
         self.visited_pages = set()
         self.downloaded_resources = {}  # resource_url -> local_path
+
+        # Map language names to codes
+        self.lang_name_to_code = {name.lower(): code for name, code in top20_language_codes.items()}
+        # Map codes to display names
+        self.code_to_name = {code: name for name, code in top20_language_codes.items()}
     
     @app_commands.command(name="randnum", description="Generate a random number between a given range.")
     @app_commands.describe(min_num="The minimum number", max_num="The maximum number")
@@ -548,6 +616,69 @@ class Utility(commands.Cog):
             await asyncio.to_thread(shutil.rmtree, "scraped_site", True)
             if zip_path and os.path.exists(zip_path):
                 await asyncio.to_thread(os.remove, zip_path)
+        await log_action(self.bot, interaction)
+
+    # -------------------------
+    # ----- Translate Handler --
+    # -------------------------
+
+    async def source_autocomplete(self, interaction: discord.Interaction, current: str):
+        """Autocomplete for source language: includes 'Auto' + top20."""
+        entries = ['Auto'] + top20_languages
+        return [app_commands.Choice(name=lang, value=lang)
+                for lang in entries if current.lower() in lang.lower()][:25]
+
+    async def target_autocomplete(self, interaction: discord.Interaction, current: str):
+        """Autocomplete for target language: only top20."""
+        return [app_commands.Choice(name=lang, value=lang)
+                for lang in top20_languages if current.lower() in lang.lower()][:25]
+
+    @app_commands.command(name="translate", description="Translate text between languages.")
+    @app_commands.describe(
+        text="Text to translate",
+        from_lang="Source language (default: auto-detect)",
+        to_lang="Target language"
+    )
+    @app_commands.autocomplete(from_lang=source_autocomplete, to_lang=target_autocomplete)
+    async def translate(
+        self,
+        interaction: discord.Interaction,
+        text: str,
+        to_lang: str,
+        from_lang: str = 'Auto'
+    ):
+        await interaction.response.defer()
+
+        # Determine source language code and display name
+        if from_lang.lower() == 'auto':
+            detected_code = detect(text)
+            src_code = detected_code
+            src_display = self.code_to_name.get(src_code, src_code)
+            src_name = f"Auto-detected ({src_display})"
+        else:
+            src_code = self.lang_name_to_code.get(from_lang.lower(), from_lang)
+            src_name = self.code_to_name.get(src_code, from_lang)
+
+        # Determine target language code and display name
+        dest_code = self.lang_name_to_code.get(to_lang.lower(), to_lang)
+        dest_name = self.code_to_name.get(dest_code, to_lang)
+
+        # Perform translation
+        translated_text = GoogleTranslator(source=src_code, target=dest_code).translate(text)
+
+        # Build embed
+        embed = discord.Embed(title="Translation", color=discord.Color.blurple())
+        embed.add_field(name=f"Translate From ({src_name})", value=text, inline=False)
+        embed.add_field(name=f"Translate To ({dest_name})", value=translated_text, inline=False)
+
+        # Add TTS buttons
+        view = TranslateView(
+            original_text=text,
+            translated_text=translated_text,
+            src_code=src_code,
+            dest_code=dest_code
+        )
+        await interaction.followup.send(embed=embed, view=view)
         await log_action(self.bot, interaction)
 
 async def setup(bot):
