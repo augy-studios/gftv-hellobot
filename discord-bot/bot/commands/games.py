@@ -542,7 +542,7 @@ class FlagMatchSession(BaseSession):
         embed = discord.Embed(
             title="Flag Match",
             description="Which country does this flag belong to?",
-            color=0x0000FF
+            color=discord.Color.random()
         )
         embed.set_image(url=url)
         return embed
@@ -554,19 +554,20 @@ class FlagMatchSession(BaseSession):
             view.add_item(FlagButton(name, self))
         return view
 
-    async def answer(self, interaction, choice: str):
-        # determine result text
-        if choice == self.correct[0]:
-            result = f"✅ Correct! It was **{self.correct[0]}**!"
+    async def answer(self, interaction: discord.Interaction, choice: str):
+        # treat truncated choice as correct if it appears in the full country name
+        full_name = self.correct[0]
+        if choice.lower() in full_name.lower():
+            result = f"✅ Correct! It was **{full_name}**!"
         else:
-            result = f"❌ Wrong! It was **{self.correct[0]}**."
+            result = f"❌ Wrong! It was **{full_name}**."
 
         # rebuild the embed to show the original flag + question + result
         name, url = self.correct
         embed = discord.Embed(
             title="Flag Match",
             description=f"Which country does this flag belong to?\n{result}",
-            color=0x0000FF
+            color=discord.Color.random()
         )
         embed.set_image(url=url)
 
