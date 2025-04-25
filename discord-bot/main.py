@@ -33,6 +33,7 @@ async def load_cogs():
     await bot.load_extension("bot.commands.fun")
     await bot.load_extension("bot.commands.generative")
     await bot.load_extension("bot.commands.profile")
+    await bot.load_extension("bot.commands.admin")
 
 # Function to fetch and display command IDs
 async def fetch_command_ids():
