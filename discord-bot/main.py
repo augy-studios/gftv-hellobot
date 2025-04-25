@@ -19,7 +19,7 @@ async def update_activity():
     random2 = random.randint(1, 100)
     bignum = max(random1, random2)
     smallnum = min(random1, random2)
-    activity = discord.Activity(type=discord.ActivityType.watching, name=f"over GFTV communities (Shard {bot.shard_count + smallnum}/{bot.shard_count + bignum})")
+    activity = discord.Activity(type=discord.ActivityType.watching, name=f"over GFTV communities (session: {bot.shard_count + smallnum}.{bot.shard_count + bignum})")
     await bot.change_presence(activity=activity)
 
 # Load cogs
