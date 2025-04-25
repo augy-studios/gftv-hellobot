@@ -36,3 +36,5 @@ __pycache__/
 .venv/
 
 /scraped_site
+
+*.csv
