@@ -72,7 +72,7 @@ class GameManager:
 class BaseSession:
     def __init__(self, manager: GameManager, interaction: discord.Interaction, *args):
         self.manager = manager
-        self.ctx = interaction
+        self.ctx     = interaction
         self.channel = interaction.channel
         self.players = [interaction.user]
         if args and isinstance(args[0], discord.Member):
@@ -83,13 +83,22 @@ class BaseSession:
 
     async def start(self) -> discord.Message:
         embed = self.render()
-        view = self.build_view()
-        await self.manager.bot.wait_until_ready()
-        self.message = await self.channel.send(embed=embed, view=view)
-        return self.message
+        view  = self.build_view()
+
+        try:
+            # First try replying to the interaction directly
+            await self.ctx.response.send_message(embed=embed, view=view)
+            # Then fetch the message we just sent
+            msg = await self.ctx.original_response()
+        except discord.errors.HTTPException:
+            # If we've already replied (e.g. via a button), fall back to followup
+            msg = await self.ctx.followup.send(embed=embed, view=view)
+
+        self.message = msg
+        return msg
 
     async def on_interaction(self, interaction: discord.Interaction):
-        pass  # override in subclasses
+        pass  # overridden by each game
 
     def next_player(self):
         self.current = (self.current + 1) % len(self.players)
@@ -510,11 +519,13 @@ class TriviaButton(discord.ui.Button):
 class FlagMatchSession(BaseSession):
     def __init__(self, manager, interaction):
         super().__init__(manager, interaction)
-        self.flags = []  # list of (name, url)
+        self.flags   = []  # list of (name, url)
         self.correct = None
 
-    async def start(self):
+    async def start(self) -> discord.Message:
+        # load four flags and pick the correct one
         await self.fetch_flags()
+        # now self.correct is set, so render() will work
         return await super().start()
 
     async def fetch_flags(self):
@@ -523,31 +534,47 @@ class FlagMatchSession(BaseSession):
             async with session.get('https://restcountries.com/v3.1/all') as r:
                 data = await r.json()
         choices = random.sample(data, 4)
-        self.flags = [(c['name']['common'], c['flags']['png']) for c in choices]
+        self.flags   = [(c['name']['common'], c['flags']['png']) for c in choices]
         self.correct = random.choice(self.flags)
 
     def render(self):
         name, url = self.correct
-        embed=discord.Embed(title="Flag Match", description="Which country does this flag belong to?", color=0x0000FF)
+        embed = discord.Embed(
+            title="Flag Match",
+            description="Which country does this flag belong to?",
+            color=0x0000FF
+        )
         embed.set_image(url=url)
         return embed
 
     def build_view(self):
-        view=discord.ui.View(timeout=None)
+        view = discord.ui.View(timeout=None)
         random.shuffle(self.flags)
         for name, _ in self.flags:
             view.add_item(FlagButton(name, self))
         return view
 
-    async def on_interaction(self, interaction): pass
-
     async def answer(self, interaction, choice: str):
-        if choice==self.correct[0]:
-            desc = "✅ Correct!"
+        # determine result text
+        if choice == self.correct[0]:
+            result = f"✅ Correct! It was **{self.correct[0]}**!"
         else:
-            desc = f"❌ Wrong! It was {self.correct[0]}."
-        embed=discord.Embed(title="Flag Match", description=desc)
-        await interaction.response.edit_message(embed=embed, view=None)
+            result = f"❌ Wrong! It was **{self.correct[0]}**."
+
+        # rebuild the embed to show the original flag + question + result
+        name, url = self.correct
+        embed = discord.Embed(
+            title="Flag Match",
+            description=f"Which country does this flag belong to?\n{result}",
+            color=0x0000FF
+        )
+        embed.set_image(url=url)
+
+        # attach only our Play Again button
+        view = discord.ui.View(timeout=None)
+        view.add_item(PlayAgainButton(self))
+
+        await interaction.response.edit_message(embed=embed, view=view)
 
 class FlagButton(discord.ui.Button):
     def __init__(self, label, session):
@@ -555,6 +582,20 @@ class FlagButton(discord.ui.Button):
         self.session=session
     async def callback(self, interaction: discord.Interaction):
         await self.session.answer(interaction, self.label)
+
+class PlayAgainButton(discord.ui.Button):
+    def __init__(self, session):
+        super().__init__(style=discord.ButtonStyle.secondary, label="Play Again")
+        self.session = session
+
+    async def callback(self, interaction: discord.Interaction):
+        # 1) Pick new flags
+        await self.session.fetch_flags()
+        # 2) Build the fresh embed + buttons
+        embed = self.session.render()
+        view  = self.session.build_view()
+        # 3) Edit the very same message
+        await interaction.response.edit_message(embed=embed, view=view)
 
 # ----------------------------------------
 # UnoSession (Simplified)
