@@ -747,7 +747,10 @@ class Games(commands.Cog):
     @commands.Cog.listener()
     async def on_interaction(self, interaction: discord.Interaction):
         if interaction.type == discord.InteractionType.component:
-            await self.manager.handle_interaction(interaction)
+            msg = interaction.message
+            # only handle it if we really have a session for that message
+            if msg and msg.id in self.manager.sessions:
+                await self.manager.handle_interaction(interaction)
 
 async def setup(bot):
     await bot.add_cog(Games(bot))
