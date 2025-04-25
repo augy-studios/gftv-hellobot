@@ -1,28 +1,69 @@
 import os
-import discord
+import csv
+import string
+import datetime
 import random
+
+import discord
 from discord.ext import commands
+
 from core.logger import setup_error_handling
 from config import DISCORD_TOKEN
 from user_utils import update_known_users
 
-# Define bot with AutoShardedBot
+# ----- Bot setup -----
 intents = discord.Intents.default()
-intents.message_content = True  # Enable message content intent if needed
+intents.message_content = True
 intents.guilds = True
-intents.members = True  # Required to fetch all members
+intents.members = True
 bot = commands.AutoShardedBot(command_prefix="!", intents=intents)
 
-# Function to update the activity
-async def update_activity():
-    random1 = random.randint(1, 100)
-    random2 = random.randint(1, 100)
-    bignum = max(random1, random2)
-    smallnum = min(random1, random2)
-    activity = discord.Activity(type=discord.ActivityType.watching, name=f"over GFTV communities (session: {bot.shard_count + smallnum}.{bot.shard_count + bignum})")
-    await bot.change_presence(activity=activity)
+# ----- Session-ID generation & logging -----
+SESSION_FILE = "sessions.csv"
 
-# Load cogs
+def generate_session_id():
+    chars = string.ascii_lowercase + string.digits
+    return "".join(random.choice(chars) for _ in range(8))
+
+# Create file + header if it doesn't exist
+if not os.path.exists(SESSION_FILE):
+    with open(SESSION_FILE, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow(["id", "session_id", "datetime_now"])
+
+# Read existing IDs & find max row-ID
+existing = set()
+max_id = 0
+with open(SESSION_FILE, newline="", encoding="utf-8") as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        existing.add(row["session_id"])
+        try:
+            row_id = int(row["id"])
+            max_id = max(max_id, row_id)
+        except ValueError:
+            pass
+
+# Pick a fresh session_id
+session_id = generate_session_id()
+while session_id in existing:
+    session_id = generate_session_id()
+
+# Append new row
+new_id = max_id + 1
+now_iso = datetime.datetime.now().isoformat()
+with open(SESSION_FILE, "a", newline="", encoding="utf-8") as f:
+    writer = csv.writer(f)
+    writer.writerow([new_id, session_id, now_iso])
+
+# ----- Activity updater -----
+async def update_activity():
+    # set a custom status with an emoji
+    await bot.change_presence(
+        activity=discord.CustomActivity(name=f"Hello, GFTV! (Session ID: {session_id})", emoji=":wave:")
+    )
+
+# ----- Load extensions, events, etc. -----
 async def load_cogs():
     await bot.load_extension("bot.commands.general")
     await bot.load_extension("bot.commands.info")
@@ -65,8 +106,6 @@ async def on_guild_remove(guild):
     await update_known_users(bot)
     await update_activity()
 
-# Initialize error handling
+# ----- Error handling & run bot -----
 setup_error_handling(bot)
-
-# Run the bot
 bot.run(DISCORD_TOKEN)
