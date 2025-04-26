@@ -92,7 +92,7 @@ async def on_ready():
     await fetch_command_ids()  # Fetch and display command IDs
     await update_known_users(bot)  # Update known users with all guild members
     await update_activity()  # Update the status on startup
-    print(f"Logged in as {bot.user} (ID: {bot.user.id}) with {bot.shard_count} shard(s)")
+    print(f"Logged in as {bot.user} (ID: {bot.user.id}) with {bot.shard_count} shard(s) [Session ID: {session_id}]")
 
 # Update known users and activity when joining a new guild
 @bot.event
