@@ -99,12 +99,14 @@ async def on_ready():
 # Update known users and activity when joining a new guild
 @bot.event
 async def on_guild_join(guild):
+    print(f"Joined new guild: {guild.name} (ID: {guild.id})")
     await update_known_users(bot)
     await update_activity()
 
 # Update known users and activity when leaving a guild
 @bot.event
 async def on_guild_remove(guild):
+    print(f"Left guild: {guild.name} (ID: {guild.id})")
     await update_known_users(bot)
     await update_activity()
 
