@@ -4,7 +4,8 @@ from discord.ext import commands
 from discord import app_commands
 import random
 import math
-from PIL import Image, ImageDraw
+from PIL import Image, ImageDraw, ImageEnhance, ImageFilter
+from skimage.metrics import structural_similarity as compare_ssim
 import io
 import math
 import numpy as np
@@ -443,6 +444,91 @@ class Generative(commands.Cog):
         except Exception as e:
             await interaction.followup.send(f"An unexpected error occurred: {e}")
         
+        await log_action(self.bot, interaction)
+
+    @app_commands.command(
+        name="enhance",
+        description="Enhance an image file. If no change is needed, I'll let you know."
+    )
+    @app_commands.describe(
+        image="The image to enhance",
+        mode="Enhancement mode (optional; defaults to Auto)"
+    )
+    @app_commands.choices(
+        mode=[
+            app_commands.Choice(name="Auto", value="auto"),
+            app_commands.Choice(name="Background Effect", value="background_effect"),
+            app_commands.Choice(name="Erase Reflections", value="erase_reflections"),
+            app_commands.Choice(name="Erase Shadows", value="erase_shadows"),
+            app_commands.Choice(name="Remaster", value="remaster"),
+            app_commands.Choice(name="Remove Lens Flare", value="remove_lens_flare"),
+        ]
+    )
+    async def enhance(
+        self,
+        interaction: discord.Interaction,
+        image: discord.Attachment,
+        mode: app_commands.Choice[str] = None
+    ):
+        await interaction.response.defer()
+
+        # download the attachment
+        img_bytes = await image.read()
+        original = Image.open(io.BytesIO(img_bytes)).convert("RGB")
+
+        # define enhancement functions
+        def enhance_auto(img: Image.Image) -> Image.Image:
+            enh = ImageEnhance.Color(img).enhance(1.2)
+            enh = ImageEnhance.Contrast(enh).enhance(1.1)
+            return enh.filter(ImageFilter.DETAIL)
+
+        def enhance_background_effect(img: Image.Image) -> Image.Image:
+            return img.filter(ImageFilter.GaussianBlur(radius=2))
+
+        def erase_reflections(img: Image.Image) -> Image.Image:
+            return img.filter(ImageFilter.UnsharpMask(radius=2, percent=150))
+
+        def erase_shadows(img: Image.Image) -> Image.Image:
+            enhancer = ImageEnhance.Brightness(img)
+            return enhancer.enhance(1.1)
+
+        def remaster(img: Image.Image) -> Image.Image:
+            return img.filter(ImageFilter.DETAIL).filter(ImageFilter.SHARPEN)
+
+        def remove_lens_flare(img: Image.Image) -> Image.Image:
+            img_mod = ImageEnhance.Contrast(img).enhance(0.9)
+            return ImageEnhance.Brightness(img_mod).enhance(1.05)
+
+        # map modes to their functions
+        modes = {
+            "auto": enhance_auto,
+            "background_effect": enhance_background_effect,
+            "erase_reflections": erase_reflections,
+            "erase_shadows": erase_shadows,
+            "remaster": remaster,
+            "remove_lens_flare": remove_lens_flare,
+        }
+
+        # select mode (default to 'auto')
+        choice_value = mode.value if mode is not None else "auto"
+        processed = modes[choice_value](original)
+
+        # compare structural similarity to detect minimal change
+        orig_np = np.array(original.resize((256, 256))).astype("float32")
+        proc_np = np.array(processed.resize((256, 256))).astype("float32")
+        grayA = np.dot(orig_np[..., :3], [0.2989, 0.5870, 0.1140])
+        grayB = np.dot(proc_np[..., :3], [0.2989, 0.5870, 0.1140])
+        score, _ = compare_ssim(grayA, grayB, full=True, data_range=grayB.max() - grayB.min())
+
+        if score > 0.995:
+            return await interaction.followup.send("Looks like no enhancement was needed.")
+
+        # send back the enhanced image
+        buf = io.BytesIO()
+        processed.save(buf, format="PNG")
+        buf.seek(0)
+        file = discord.File(fp=buf, filename="enhanced.png")
+        await interaction.followup.send(file=file)
         await log_action(self.bot, interaction)
 
 async def setup(bot):
