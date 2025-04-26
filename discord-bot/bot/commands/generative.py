@@ -10,7 +10,6 @@ import io
 import math
 import numpy as np
 import pandas as pd
-import csv
 from core.logger import log_action
 
 def blend(color1, color2, ratio):

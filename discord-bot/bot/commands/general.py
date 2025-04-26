@@ -1,6 +1,5 @@
 import discord
 import random
-import re
 from discord.ext import commands
 from discord import app_commands
 from core.logger import log_action

@@ -1,5 +1,4 @@
 import random
-import json
 import aiohttp
 import discord
 import chess

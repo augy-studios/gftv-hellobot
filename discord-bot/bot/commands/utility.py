@@ -16,9 +16,6 @@ import re
 import math
 import aiohttp
 import logging
-import pdfkit
-import imgkit
-import zipfile
 from bs4 import BeautifulSoup
 import shutil
 import asyncio
@@ -26,7 +23,6 @@ import subprocess
 import shlex
 import os
 import requests
-import urllib.parse
 from urllib.parse import urljoin, urlparse
 from core.logger import log_action
 
