@@ -8,7 +8,7 @@ import discord
 from discord.ext import commands
 
 from core.logger import setup_error_handling
-from config import DISCORD_TOKEN
+from config import DISCORD_TOKEN, LOG_GUILD_ID
 from user_utils import update_known_users
 
 # ----- Bot setup -----
@@ -89,6 +89,8 @@ async def fetch_command_ids():
 async def on_ready():
     await load_cogs()
     await bot.tree.sync()  # Sync commands with Discord
+    await bot.tree.sync(guild=discord.Object(id=LOG_GUILD_ID))
+    await bot.tree.sync(guild=discord.Object(id=576590416296542249))
     await fetch_command_ids()  # Fetch and display command IDs
     await update_known_users(bot)  # Update known users with all guild members
     await update_activity()  # Update the status on startup
