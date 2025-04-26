@@ -293,8 +293,8 @@ class Utility(commands.Cog):
     async def ytimg(self, interaction: discord.Interaction, link_or_id: str):
         # Regular expression patterns to extract video ID
         yt_patterns = [
-            r"(?:https?://)?(?:www\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([\w-]+)",  # YouTube long/shorts links
-            r"(?:https?://)?(?:www\.)?youtube\.com/embed/([\w-]+)",  # Embedded video link
+            r"(?:https?://)?(?:www\.|m\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([\w-]+)",  # YouTube long/shorts links
+            r"(?:https?://)?(?:www\.|m\.)?youtube\.com/embed/([\w-]+)",  # Embedded video link
             r"^[\w-]{11}$"  # Direct video ID
         ]
 
