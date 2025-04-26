@@ -67,14 +67,15 @@ class Voice(commands.Cog):
             await interaction.response.send_message("❌ YouTube links are not supported. Please use a Discord audio file link, Soundcloud link, or BiliBili link.", ephemeral=True)
             return
 
-        # Check if the URL is a Discord audio file link
+        # Defer the initial response to allow followup messages
+        await interaction.response.defer()
+
+        # Prepare the audio source
         if "cdn.discordapp.com" in url:
             audio_source = discord.FFmpegPCMAudio(url, options="-vn -b:a 192k")
             song_title = "Audio File from Discord"
             audio_file = None
         else:
-            await interaction.response.defer()  # Defer response to prevent timeout
-
             # Use yt-dlp to download audio and set title to original filename
             ydl_opts = {
                 'format': 'bestaudio/best',
@@ -100,15 +101,17 @@ class Voice(commands.Cog):
                     await interaction.followup.send(f"❌ Failed to download audio: {str(e)}", ephemeral=True)
                     return
 
-        # Play the downloaded audio file
-        if audio_source:
-            def after_playing(error):
-                if error:
-                    print(f"Error playing track: {error}")
-                asyncio.run_coroutine_threadsafe(interaction.followup.send("✅ Finished playing the track."), self.bot.loop)
+        # Play and notify
+        def after_playing(error):
+            if error:
+                print(f"Error playing track: {error}")
+            asyncio.run_coroutine_threadsafe(
+                interaction.followup.send("✅ Finished playing the track."),
+                self.bot.loop
+            )
 
-            voice_client.play(audio_source, after=after_playing)
-            await interaction.followup.send(f"🎵 Now playing: `{song_title}`")
+        voice_client.play(audio_source, after=after_playing)
+        await interaction.followup.send(f"🎵 Now playing: `{song_title}`")
 
         await log_action(self.bot, interaction)
 
