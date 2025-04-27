@@ -62,7 +62,7 @@ class Voice(commands.Cog):
         if voice_client.is_playing():
             await interaction.response.send_message("❌ I am already playing music!", ephemeral=True)
             return
-        
+
         if "youtube.com" in url or "youtu.be" in url:
             await interaction.response.send_message("❌ YouTube links are not supported. Please use a Discord audio file link, Soundcloud link, or BiliBili link.", ephemeral=True)
             return
@@ -74,31 +74,22 @@ class Voice(commands.Cog):
         if "cdn.discordapp.com" in url:
             audio_source = discord.FFmpegPCMAudio(url, options="-vn -b:a 192k")
             song_title = "Audio File from Discord"
-            audio_file = None
         else:
-            # Use yt-dlp to download audio and set title to original filename
+            # Use yt-dlp to extract the audio URL for streaming
             ydl_opts = {
                 'format': 'bestaudio/best',
-                'outtmpl': '%(title)s.%(ext)s',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'm4a',
-                    'preferredquality': '320'  # Set high audio quality
-                }],
                 'quiet': True,
                 'cookies': COOKIES_FILE if os.path.exists(COOKIES_FILE) else None  # Use cookies if available
             }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 try:
-                    info = ydl.extract_info(url, download=True)
-                    filename = ydl.prepare_filename(info).rsplit(".", 1)[0]  # Extract the base filename without extension
-                    audio_file = f"{filename}.m4a"
-                    song_title = filename.replace("_", " ")  # Replace underscores with spaces
-                    audio_source = discord.FFmpegPCMAudio(f"{filename}.m4a", options="-vn -b:a 320k")  # High-quality FFmpeg playback
-                    self.current_audio_file[interaction.guild.id] = audio_file  # Track current file
+                    info = ydl.extract_info(url, download=False)  # Extract info without downloading
+                    audio_url = info['url']  # Get the direct audio URL
+                    song_title = info.get('title', 'Unknown Title')
+                    audio_source = discord.FFmpegPCMAudio(audio_url, options="-vn -b:a 192k")  # Stream audio
                 except Exception as e:
-                    await interaction.followup.send(f"❌ Failed to download audio: {str(e)}", ephemeral=True)
+                    await interaction.followup.send(f"❌ Failed to stream audio: {str(e)}", ephemeral=True)
                     return
 
         # Play and notify
