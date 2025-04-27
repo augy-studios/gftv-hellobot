@@ -14,6 +14,17 @@ class Moderation(commands.Cog):
     @app_commands.describe(member="The user that you want to kick", reason="The reason for the kick")
     @commands.has_permissions(kick_members=True)
     async def kick(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason provided"):
+        
+        if member == interaction.user:
+            await interaction.response.send_message("You cannot kick yourself.")
+            return
+        elif member == self.bot.user:
+            await interaction.response.send_message("I cannot kick myself.")
+            return
+        elif member == interaction.guild.owner:
+            await interaction.response.send_message("You cannot kick the server owner.")
+            return
+        
         await member.kick(reason=reason)
         await interaction.response.send_message(f"User {member.name} kicked for reason: {reason}")
         await log_action(self.bot, interaction)
@@ -22,6 +33,17 @@ class Moderation(commands.Cog):
     @app_commands.describe(member="The user that you want to ban", reason="The reason for the ban")
     @commands.has_permissions(ban_members=True)
     async def ban(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason provided"):
+        
+        if member == interaction.user:
+            await interaction.response.send_message("You cannot ban yourself.")
+            return
+        elif member == self.bot.user:
+            await interaction.response.send_message("I cannot ban myself.")
+            return
+        elif member == interaction.guild.owner:
+            await interaction.response.send_message("You cannot ban the server owner.")
+            return
+        
         await member.ban(reason=reason)
         await interaction.response.send_message(f"User {member.name} banned for reason: {reason}")
         await log_action(self.bot, interaction)
@@ -30,6 +52,12 @@ class Moderation(commands.Cog):
     @app_commands.describe(user="The user that you want to unban", reason="The reason for the unban")
     @commands.has_permissions(ban_members=True)
     async def unban(self, interaction: discord.Interaction, user: discord.User, reason: str = "No reason provided"):
+        
+        bans = await interaction.guild.bans()
+        if not any(ban_entry.user.id == user.id for ban_entry in bans):
+            await interaction.response.send_message(f"User {user.name} is not banned.")
+            return
+        
         await interaction.guild.unban(user, reason=reason)
         await interaction.response.send_message(f"User {user.name} unbanned for reason: {reason}")
         await log_action(self.bot, interaction)
@@ -70,6 +98,17 @@ class Moderation(commands.Cog):
     @app_commands.describe(member="The user that you want to timeout", duration="The duration of the timeout in minutes")
     @commands.has_permissions(moderate_members=True)
     async def timeout(self, interaction: discord.Interaction, member: discord.Member, duration: int):
+        
+        if member == interaction.user:
+            await interaction.response.send_message("You cannot timeout yourself.")
+            return
+        elif member == self.bot.user:
+            await interaction.response.send_message("I cannot timeout myself.")
+            return
+        elif member == interaction.guild.owner:
+            await interaction.response.send_message("You cannot timeout the server owner.")
+            return
+        
         await member.edit(timed_out_until=datetime.datetime.now() + datetime.timedelta(minutes=duration))
         await interaction.response.send_message(f"User {member.name} timed out for {duration} minutes.")
         await log_action(self.bot, interaction)
@@ -78,6 +117,11 @@ class Moderation(commands.Cog):
     @app_commands.describe(member="The user that you want to untimeout")
     @commands.has_permissions(moderate_members=True)
     async def untimeout(self, interaction: discord.Interaction, member: discord.Member):
+        
+        if member.timed_out_until is None:
+            await interaction.response.send_message(f"User {member.name} is not currently timed out.")
+            return
+        
         await member.edit(timed_out_until=None)
         await interaction.response.send_message(f"User {member.name} untimed out.")
         await log_action(self.bot, interaction)
