@@ -6,6 +6,8 @@ import os
 import random
 import re
 import sys
+import csv
+from datetime import datetime
 
 from bs4 import BeautifulSoup
 import lxml
@@ -53,6 +55,54 @@ class EvalPager(discord.ui.View):
         self.prev_button.disabled = (self.index == 0)
         self.next_button.disabled = (self.index == self.total - 1)
         self.page_button.label = f"{self.index+1}/{self.total}"
+
+class SessionsPager(discord.ui.View):
+    def __init__(self, pages):
+        super().__init__(timeout=300)
+        self.pages = pages
+        self.index = 0
+        self.total = len(pages)
+
+        # buttons
+        self.prev_button = discord.ui.Button(label="Previous", style=discord.ButtonStyle.primary, disabled=True)
+        self.page_button = discord.ui.Button(label=f"{self.index+1}/{self.total}", style=discord.ButtonStyle.secondary, disabled=True)
+        self.next_button = discord.ui.Button(label="Next", style=discord.ButtonStyle.primary, disabled=(self.total <= 1))
+
+        # attach callbacks
+        self.prev_button.callback = self.prev_callback
+        self.next_button.callback = self.next_callback
+
+        # add to view
+        self.add_item(self.prev_button)
+        self.add_item(self.page_button)
+        self.add_item(self.next_button)
+
+    def _update_buttons(self):
+        self.prev_button.disabled = (self.index == 0)
+        self.next_button.disabled = (self.index == self.total - 1)
+        self.page_button.label = f"{self.index+1}/{self.total}"
+
+    async def prev_callback(self, interaction: discord.Interaction):
+        self.index -= 1
+        self._update_buttons()
+        await interaction.response.edit_message(embed=self._make_embed(), view=self)
+
+    async def next_callback(self, interaction: discord.Interaction):
+        self.index += 1
+        self._update_buttons()
+        await interaction.response.edit_message(embed=self._make_embed(), view=self)
+
+    def _make_embed(self) -> discord.Embed:
+        embed = discord.Embed(title="Session Data", color=discord.Color.random())
+        chunk = self.pages[self.index]
+        for session in chunk:
+            embed.add_field(
+                name=f"Session ID: {session['session_id']}",
+                value=f"ID: {session['id']}\nTimestamp: {session['timestamp']}",
+                inline=False
+            )
+        embed.set_footer(text=f"Page {self.index+1}/{self.total}")
+        return embed
 
 class Admin(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -199,6 +249,41 @@ class Admin(commands.Cog):
         else:
             await interaction.response.send_message(f"```py\n{output}```", ephemeral=True)
 
+        await log_action(self.bot, interaction)
+
+    @dev.command(
+        name="sessions",
+        description="Display session data from sessions.csv"
+    )
+    @app_commands.check(lambda inter: inter.user.id == BOT_OWNER_ID)
+    async def sessions(self, interaction: discord.Interaction):
+        """Usage: /dev sessions"""
+        try:
+            # load all sessions
+            sessions = []
+            with open("sessions.csv", "r", encoding="utf-8") as csvfile:
+                reader = csv.DictReader(csvfile)
+                for row in reader:
+                    ts = int(datetime.fromisoformat(row["datetime_now"]).timestamp())
+                    sessions.append({
+                        "id": row["id"],
+                        "session_id": row["session_id"],
+                        "timestamp": f"<t:{ts}:F>"
+                    })
+
+            if not sessions:
+                return await interaction.response.send_message("No session data found.", ephemeral=True)
+
+            # chunk into pages of 25
+            chunks = [sessions[i:i+25] for i in range(0, len(sessions), 25)]
+            pager = SessionsPager(chunks)
+            first_embed = pager._make_embed()
+
+            await interaction.response.send_message(embed=first_embed, view=pager, ephemeral=True)
+        except FileNotFoundError:
+            await interaction.response.send_message("❌ `sessions.csv` file not found.", ephemeral=True)
+        except Exception as e:
+            await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
         await log_action(self.bot, interaction)
 
 async def setup(bot: commands.Bot):
