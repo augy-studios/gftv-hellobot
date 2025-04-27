@@ -6,11 +6,11 @@ from io import BytesIO
 from PIL import Image
 import discord
 from discord.ext import commands
-from discord import app_commands, Interaction
+from discord import TextChannel, app_commands, Interaction
 from gtts import gTTS
 from deep_translator import GoogleTranslator
 from langdetect import detect, DetectorFactory
-from typing import Tuple
+from typing import Optional, Tuple
 import random
 import re
 import math
@@ -344,11 +344,30 @@ class Utility(commands.Cog):
         await log_action(self.bot, interaction)
 
     @app_commands.command(name="say", description="Make the bot repeat what you say.")
-    @app_commands.describe(message="The message to repeat")
-    async def say(self, interaction: discord.Interaction, message: str):
-        """Repeats what the user says without replying directly."""
-        await interaction.response.send_message("Processing...", delete_after=1)
-        await interaction.channel.send(message.replace("\\\\n", "\n"))
+    @app_commands.describe(
+        message="The message to repeat, use \\n for a new line",
+        channel="Optional: the channel to send the message in (defaults to current channel)"
+    )
+    async def say(
+        self,
+        interaction: discord.Interaction,
+        message: str,
+        channel: Optional[TextChannel] = None
+    ):
+        # Permission check
+        if not interaction.user.guild_permissions.manage_messages:
+            return await interaction.response.send_message(
+                "❌ You do not have permission to use this command.", ephemeral=True
+            )
+
+        # Defer the response (ephemeral)
+        await interaction.response.defer(ephemeral=True)
+        await interaction.followup.send("Processing…", ephemeral=True)
+
+        # Determine target channel
+        target: TextChannel = channel or interaction.channel  # type: ignore
+        # Send the user message, preserving newlines
+        await target.send(message.replace("\\n", "\n"))
         await log_action(self.bot, interaction)
 
     # -------------------------
@@ -479,6 +498,14 @@ class Utility(commands.Cog):
         - output_type: choose your return format (default: PNG)
         - thickness: extrusion depth in pixels (default: 10)
         """
+
+        # Validate thickness
+        if thickness < 0 or thickness > 20:
+            await interaction.response.send_message(
+                "❌ Thickness must be between 0 and 20 pixels.", ephemeral=True
+            )
+            return
+
         await interaction.response.defer()
 
         # Read and process
