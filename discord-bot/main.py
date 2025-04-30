@@ -18,6 +18,9 @@ intents.guilds = True
 intents.members = True
 bot = commands.AutoShardedBot(command_prefix="!", intents=intents)
 
+# ----- Guard to load cogs only once -----
+cogs_loaded = False
+
 # ----- Session-ID generation & logging -----
 SESSION_FILE = "sessions.csv"
 
@@ -65,16 +68,25 @@ async def update_activity():
 
 # ----- Load extensions, events, etc. -----
 async def load_cogs():
-    await bot.load_extension("bot.commands.general")
-    await bot.load_extension("bot.commands.info")
-    await bot.load_extension("bot.commands.utility")
-    await bot.load_extension("bot.commands.voice")
-    await bot.load_extension("bot.commands.moderation")
-    await bot.load_extension("bot.commands.games")
-    await bot.load_extension("bot.commands.fun")
-    await bot.load_extension("bot.commands.generative")
-    await bot.load_extension("bot.commands.profile")
-    await bot.load_extension("bot.commands.admin")
+    extensions = [
+        "bot.commands.general",
+        "bot.commands.info",
+        "bot.commands.utility",
+        "bot.commands.voice",
+        "bot.commands.moderation",
+        "bot.commands.games",
+        "bot.commands.fun",
+        "bot.commands.generative",
+        "bot.commands.profile",
+        "bot.commands.admin",
+    ]
+    for ext in extensions:
+        if ext not in bot.extensions:
+            try:
+                await bot.load_extension(ext)
+                print(f"Loaded extension: {ext}")
+            except commands.ExtensionAlreadyLoaded:
+                print(f"Extension already loaded, skipping: {ext}")
 
 # Function to fetch and display command IDs
 async def fetch_command_ids():
@@ -87,14 +99,20 @@ async def fetch_command_ids():
 # Event to update known users when the bot is ready
 @bot.event
 async def on_ready():
-    await load_cogs()
+    global cogs_loaded
+    if not cogs_loaded:
+        await load_cogs()
+        cogs_loaded = True
+    else:
+        print(f"{bot.user} reconnected; cogs already loaded")
     await bot.tree.sync()  # Sync commands with Discord
     await bot.tree.sync(guild=discord.Object(id=LOG_GUILD_ID))
     await bot.tree.sync(guild=discord.Object(id=576590416296542249))
     await fetch_command_ids()  # Fetch and display command IDs
     await update_known_users(bot)  # Update known users with all guild members
     await update_activity()  # Update the status on startup
-    print(f"Logged in as {bot.user} (ID: {bot.user.id}) with {bot.shard_count} shard(s) [Session ID: {session_id}]")
+    print(f"Logged in as {bot.user} (ID: {bot.user.id}) "
+          f"with {bot.shard_count} shard(s) [Session ID: {session_id}]")
 
 # Update known users and activity when joining a new guild
 @bot.event
