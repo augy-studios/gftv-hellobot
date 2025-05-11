@@ -106,7 +106,7 @@ class General(commands.Cog):
 
         embed = discord.Embed(title="Hello!", color=discord.Color.random())
         embed.description = hello_messages.get(language, hello_messages["en"])
-        link_to_add_bot = "https://discord.com/oauth2/authorize?client_id=1337863636500090900&permissions=1757019580661751&response_type=code&redirect_uri=https%3A%2F%2Fhello.globalfurry.tv%2F&integration_type=0&scope=applications.commands+bot+applications.commands.permissions.update"
+        link_to_add_bot = "https://discord.com/oauth2/authorize?client_id=1337863636500090900"
         embed.add_field(name="Add Me to Your Server", value=f"[Click here!]({link_to_add_bot})")
         link_to_hello = "https://hello.globalfurry.tv/"
         embed.add_field(name="About HelloSpot", value=f"[Learn more about GFTV's HelloSpot!]({link_to_hello})")
