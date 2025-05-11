@@ -25,6 +25,7 @@ import os
 import requests
 from urllib.parse import urljoin, urlparse
 from core.logger import log_action
+from config import BOT_OWNER_ID
 
 logger = logging.getLogger(__name__)
 
@@ -355,10 +356,11 @@ class Utility(commands.Cog):
         channel: Optional[TextChannel] = None
     ):
         # Permission check
-        if not interaction.user.guild_permissions.manage_messages:
-            return await interaction.response.send_message(
-                "❌ You do not have permission to use this command.", ephemeral=True
-            )
+        if not interaction.user.id == BOT_OWNER_ID:
+            if not interaction.user.guild_permissions.manage_messages:
+                return await interaction.response.send_message(
+                    "❌ You do not have permission to use this command.", ephemeral=True
+                )
 
         # Defer the response (ephemeral)
         await interaction.response.defer(ephemeral=True)
