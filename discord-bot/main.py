@@ -16,6 +16,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 intents.guilds = True
 intents.members = True
+intents.voice_states = True
 bot = commands.AutoShardedBot(command_prefix="!", intents=intents)
 
 # ----- Guard to load cogs only once -----
@@ -127,6 +128,12 @@ async def on_guild_remove(guild):
     print(f"Left guild: {guild.name} (ID: {guild.id})")
     await update_known_users(bot)
     await update_activity()
+
+@bot.listen("on_socket_response")
+async def _debug_voice(payload):
+    t = payload.get("t")
+    if t in {"VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"}:
+        print("[VOICE EVENT]", t)
 
 # ----- Error handling & run bot -----
 setup_error_handling(bot)
