@@ -121,19 +121,40 @@ class Voice(commands.Cog):
 
     @app_commands.command(name="join", description="Join the voice channel you are currently in.")
     async def join(self, interaction: discord.Interaction):
-        """Joins the voice channel the command executor is in."""
+        """Joins (or moves to) the voice channel the command executor is in."""
+        # 1) Defer immediately so we don't hit "Unknown interaction"
+        await interaction.response.defer(thinking=True, ephemeral=True)
+
+        # 2) Ensure the user is actually in a voice channel
         if not interaction.user.voice or not interaction.user.voice.channel:
-            await interaction.response.send_message("❌ You must be in a voice channel for me to join!", ephemeral=True)
+            await interaction.followup.send("❌ You must be in a voice channel for me to join!", ephemeral=True)
             return
 
-        channel = interaction.user.voice.channel
-        voice_client = discord.utils.get(self.bot.voice_clients, guild=interaction.guild)
+        target_ch = interaction.user.voice.channel
 
-        if voice_client and voice_client.is_connected():
-            await interaction.response.send_message("✅ I am already in a voice channel.", ephemeral=True)
-        else:
-            await channel.connect()
-            await interaction.response.send_message(f"✅ Joined {channel.name}.")
+        # 3) Reuse or move the existing VC if possible
+        vc = discord.utils.get(self.bot.voice_clients, guild=interaction.guild)
+        try:
+            if vc and vc.is_connected():
+                if vc.channel and vc.channel.id == target_ch.id:
+                    await interaction.followup.send(f"✅ Already in {target_ch.mention}.", ephemeral=True)
+                else:
+                    # Move instead of reconnecting to avoid join/leave flapping
+                    await vc.move_to(target_ch)
+                    await interaction.followup.send(f"🔁 Moved to {target_ch.mention}.", ephemeral=True)
+            else:
+                # Fresh connect (enable reconnect; add a timeout)
+                await target_ch.connect(timeout=20, reconnect=True)
+                await interaction.followup.send(f"✅ Joined {target_ch.mention}.", ephemeral=True)
+        except discord.Forbidden:
+            await interaction.followup.send("❌ I don’t have permission to connect/speak in that channel.", ephemeral=True)
+        except asyncio.TimeoutError:
+            await interaction.followup.send("⌛ Timed out while trying to connect to the voice channel.", ephemeral=True)
+        except discord.ClientException as e:
+            # e.g. Already connected to a voice channel.
+            await interaction.followup.send(f"⚠️ Couldn’t join: {e}", ephemeral=True)
+
+        # (Optional) if you track actions:
         await log_action(self.bot, interaction)
 
     @app_commands.command(name="leave", description="Leave the voice channel.")
