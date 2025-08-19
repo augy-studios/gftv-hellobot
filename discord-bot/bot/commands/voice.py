@@ -139,19 +139,27 @@ class Voice(commands.Cog):
                 if vc.channel and vc.channel.id == target_ch.id:
                     await interaction.followup.send(f"✅ Already in {target_ch.mention}.", ephemeral=True)
                 else:
-                    # Move instead of reconnecting to avoid join/leave flapping
                     await vc.move_to(target_ch)
                     await interaction.followup.send(f"🔁 Moved to {target_ch.mention}.", ephemeral=True)
             else:
-                # Fresh connect (enable reconnect; add a timeout)
+                # Fresh connect with timeout + reconnect
                 await target_ch.connect(timeout=20, reconnect=True)
                 await interaction.followup.send(f"✅ Joined {target_ch.mention}.", ephemeral=True)
+
+        except discord.errors.ConnectionClosed as e:
+            # This is the 4006 you're seeing; surface a clear hint
+            await interaction.followup.send(
+                f"🚫 Voice connect failed (code {getattr(e, 'code', '??')}): "
+                "this usually means UDP or IPv6 is blocked on the host. "
+                "Try disabling VPN/WARP and prefer IPv4.",
+                ephemeral=True
+            )
+            raise
         except discord.Forbidden:
             await interaction.followup.send("❌ I don’t have permission to connect/speak in that channel.", ephemeral=True)
         except asyncio.TimeoutError:
             await interaction.followup.send("⌛ Timed out while trying to connect to the voice channel.", ephemeral=True)
         except discord.ClientException as e:
-            # e.g. Already connected to a voice channel.
             await interaction.followup.send(f"⚠️ Couldn’t join: {e}", ephemeral=True)
 
         # (Optional) if you track actions:
@@ -179,7 +187,7 @@ class Voice(commands.Cog):
         channel = interaction.user.voice.channel
         vc = discord.utils.get(self.bot.voice_clients, guild=interaction.guild)
         if not vc:
-            vc = await channel.connect()
+            vc = await channel.connect(timeout=20, reconnect=True)
 
         # If already playing, enqueue immediately without deferring
         if vc.is_playing():
@@ -243,7 +251,7 @@ class Voice(commands.Cog):
         if not vc or not vc.is_connected():
             # fall back to last-known voice channel of user
             if interaction.user.voice and interaction.user.voice.channel:
-                vc = await interaction.user.voice.channel.connect()
+                vc = await interaction.user.voice.channel.connect(timeout=20, reconnect=True)
             else:
                 # no channel available
                 await interaction.followup.send("❌ Unable to join voice channel.", ephemeral=True)
