@@ -2,6 +2,7 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 import asyncio
+import yt_dlp
 import os
 import csv
 import random
