@@ -73,7 +73,6 @@ async def load_cogs():
         "bot.commands.general",
         "bot.commands.info",
         "bot.commands.utility",
-        "bot.commands.voice",
         "bot.commands.moderation",
         "bot.commands.games",
         "bot.commands.fun",
