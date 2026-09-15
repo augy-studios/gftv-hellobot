@@ -14,10 +14,10 @@ from typing import Optional, Tuple
 import random
 import re
 import math
-import aiohttp
 import logging
 from bs4 import BeautifulSoup
 import shutil
+import json
 import asyncio
 import subprocess
 import shlex
@@ -376,27 +376,20 @@ class Utility(commands.Cog):
     # Country Checklist Handler
     # -------------------------
     async def _load_countries(self):
-        """Fetch from restcountries.com and map continents to country lists, handling errors."""
-        url = "https://restcountries.com/v3.1/all"
+        """Load the bundled continent -> country list (countries.json), handling errors."""
+        # restcountries.com v3.1 was shut down (v5 needs an API key), so the list ships with the bot.
+        path = os.path.join(os.path.dirname(__file__), "countries.json")
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url) as resp:
-                    if resp.status != 200:
-                        raise ValueError(f"Bad status: {resp.status}")
-                    data = await resp.json(content_type=None)
+            with open(path, encoding="utf-8") as f:
+                data = json.load(f)
+            if not isinstance(data, dict):
+                raise ValueError("countries.json must be a JSON object of continent -> [countries]")
         except Exception as e:
             logger.error(f"Failed to load country data: {e}")
             self.continents = {}
             return
 
-        continents = {}
-        for entry in data:
-            name = entry.get("name", {}).get("common")
-            conts = entry.get("continents")
-            if name and conts:
-                continents.setdefault(conts[0], []).append(name)
-        for c in continents:
-            continents[c].sort()
+        continents = {cont: sorted(names) for cont, names in data.items() if names}
         self.continents = continents
         logger.info(f"Loaded {sum(len(v) for v in continents.values())} countries across {len(continents)} continents.")
 

@@ -17,7 +17,10 @@ intents.message_content = True
 intents.guilds = True
 intents.members = True
 intents.voice_states = True
-bot = commands.AutoShardedBot(command_prefix="!", intents=intents)
+# Plain Bot, not AutoShardedBot: the sharded client's reconnect path in discord.py 2.5.x
+# doesn't catch ReconnectWebSocket and terminates the process instead of reconnecting.
+# Sharding is only required past 2500 guilds anyway.
+bot = commands.Bot(command_prefix="!", intents=intents)
 
 # ----- Guard to load cogs only once -----
 cogs_loaded = False
@@ -112,7 +115,7 @@ async def on_ready():
     await update_known_users(bot)  # Update known users with all guild members
     await update_activity()  # Update the status on startup
     print(f"Logged in as {bot.user} (ID: {bot.user.id}) "
-          f"with {bot.shard_count} shard(s) [Session ID: {session_id}]")
+          f"with {bot.shard_count or 1} shard(s) [Session ID: {session_id}]")
 
 # Update known users and activity when joining a new guild
 @bot.event

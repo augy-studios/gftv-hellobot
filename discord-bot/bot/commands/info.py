@@ -145,7 +145,7 @@ class Info(commands.Cog):
         # Get bot description from application info
         app_info = await self.bot.application_info()
         bot_description = app_info.description or "No description provided."
-        shard_count = self.bot.shard_count
+        shard_count = self.bot.shard_count or 1
 
         # Embed information
         embed = discord.Embed(title="Bot Info", color=discord.Color.random())
