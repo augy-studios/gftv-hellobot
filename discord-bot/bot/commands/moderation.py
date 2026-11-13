@@ -1,8 +1,9 @@
 import datetime
+import logging
 import discord
 from discord.ext import commands
 from discord import app_commands
-from core.logger import log_action
+from core.logger import log_action, log_error
 
 class Moderation(commands.Cog):
     """Moderation commands for users, messages, threads, channels and invites."""
@@ -12,14 +13,15 @@ class Moderation(commands.Cog):
         self.bot = bot
 
     async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
-        """Answer a moderation command the caller isn't allowed to use, instead of failing silently."""
-        if isinstance(error, app_commands.NoPrivateMessage):
-            message = "❌ Moderation commands only work in a server."
-        elif isinstance(error, app_commands.MissingPermissions):
-            missing = ", ".join(permission.replace("_", " ") for permission in error.missing_permissions)
-            message = f"❌ You need the {missing} permission to use this command."
-        else:
+        """Answer a caller without the permission privately; log every other error, as discord.py did before this handler."""
+        if not isinstance(error, app_commands.MissingPermissions):
+            # With this handler in place discord.py no longer prints the traceback itself.
+            logging.getLogger(__name__).error("Error in a moderation command", exc_info=error)
+            await log_error(self.bot, interaction, error)
             return
+        # A DM has no permissions, so it lands here too.
+        missing = ", ".join(permission.replace("_", " ") for permission in error.missing_permissions)
+        message = f"❌ You need the {missing} permission to use this command."
         if interaction.response.is_done():
             await interaction.followup.send(message, ephemeral=True)
         else:

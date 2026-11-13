@@ -11,14 +11,14 @@ Is the bot not responding? Check its status [here](https://pages.statusbot.us/id
 
 ## Checks
 
-Run these before merging any change to either bot. They need Python 3.10 or newer, and never log
-in to Discord or Telegram.
+Run these before merging any change to either bot. They need Python 3.13 or newer (`audioop-lts`), and
+never log in to Discord or Telegram.
 
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install ruff
-.venv/bin/pip install -r discord-bot/requirements.txt
-.venv/bin/pip install -r telegram-bot/requirements.txt   # separately: the import check loads the Telegram cogs too
+.venv/bin/pip install -r telegram-bot/requirements.txt   # the import check loads the Telegram cogs too
+.venv/bin/pip install -r discord-bot/requirements.txt    # last: the Telegram file pins an older discord.py
 tools/check_all.sh
 ```
 

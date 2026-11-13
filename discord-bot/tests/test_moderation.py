@@ -40,7 +40,7 @@ class PermissionCheckTests(unittest.TestCase):
         self.assertTrue(kick.checks[0](interaction))
 
     def test_refused_callers_get_a_reply(self):
-        """cog_app_command_error answers a missing permission and a DM, privately."""
+        """cog_app_command_error answers a missing permission privately."""
         sent = []
 
         async def send_message(text, **kwargs):
@@ -51,6 +51,16 @@ class PermissionCheckTests(unittest.TestCase):
         interaction.response.is_done.return_value = False
         interaction.response.send_message = send_message
         asyncio.run(cog.cog_app_command_error(interaction, app_commands.MissingPermissions(["kick_members"])))
-        asyncio.run(cog.cog_app_command_error(interaction, app_commands.NoPrivateMessage()))
-        self.assertEqual(sent[0], ("❌ You need the kick members permission to use this command.", {"ephemeral": True}))
-        self.assertEqual(sent[1], ("❌ Moderation commands only work in a server.", {"ephemeral": True}))
+        self.assertEqual(sent, [("❌ You need the kick members permission to use this command.", {"ephemeral": True})])
+
+    def test_other_errors_are_logged(self):
+        """Any other error is logged and sent to the log channel, with no reply."""
+        cog = object.__new__(moderation.Moderation)
+        cog.bot = mock.MagicMock()
+        interaction = mock.MagicMock()
+        error = app_commands.CommandInvokeError(mock.MagicMock(), RuntimeError("Forbidden"))
+        with mock.patch.object(moderation, "log_error", new=mock.AsyncMock()) as log_error, \
+                self.assertLogs(moderation.__name__, level="ERROR"):
+            asyncio.run(cog.cog_app_command_error(interaction, error))
+        log_error.assert_awaited_once_with(cog.bot, interaction, error)
+        interaction.response.send_message.assert_not_called()
