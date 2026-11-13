@@ -64,6 +64,7 @@
       "discord-bot/bot/commands/generative.py::setup",
       "discord-bot/bot/commands/info.py::setup",
       "discord-bot/bot/commands/miscellaneous.py::setup",
+      "discord-bot/bot/commands/moderation.py::Moderation.cog_app_command_error",
       "discord-bot/bot/commands/moderation.py::setup",
       "discord-bot/bot/commands/profile.py::setup",
       "discord-bot/bot/commands/utility.py::ContinentButton.callback",

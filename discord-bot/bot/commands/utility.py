@@ -16,6 +16,8 @@ from typing import Optional, Tuple
 import random
 import re
 import math
+import ast
+import operator
 import logging
 from bs4 import BeautifulSoup
 import shutil
@@ -63,6 +65,93 @@ TOP_20_LANGUAGES = list(TOP_20_LANGUAGE_CODES.keys())
 # --------------------------
 # Country Checklist Handlers
 # --------------------------
+# /math works out an expression by walking its syntax tree, never with eval(). Only numbers,
+# + - * / // % **, the math module's functions and constants, abs and round are allowed, and
+# results are kept small enough that no expression can stall the bot.
+MATH_BINARY_OPERATORS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+}
+MATH_UNARY_OPERATORS = {ast.UAdd: operator.pos, ast.USub: operator.neg}
+MATH_MAX_EXPRESSION_LENGTH = 200
+MATH_MAX_RESULT_BITS = 5000  # about 1,500 digits, so the reply fits in one Discord message
+MATH_MAX_LARGE_FUNCTION_ARGUMENT = 1000  # factorial, comb, perm; the result cap usually binds first
+MATH_MAX_ROUND_DIGITS = 400  # round(x, -n) works out 10**n internally
+MATH_LARGE_RESULT_FUNCTIONS = {"factorial", "comb", "perm"}
+
+
+class UnsafeMathExpression(ValueError):
+    """An expression that uses something /math doesn't allow, or whose result would be too large."""
+
+
+def build_math_names():
+    """Name -> value for every public name in the math module, plus abs and round."""
+    names = {name: getattr(math, name) for name in dir(math) if not name.startswith("_")}
+    names["abs"] = abs
+    names["round"] = round
+    return names
+
+
+MATH_NAMES = build_math_names()
+
+
+def check_math_result_size(value):
+    """Return value, or raise if it is a whole number too large to show."""
+    if isinstance(value, int) and value.bit_length() > MATH_MAX_RESULT_BITS:
+        raise UnsafeMathExpression("result too large")
+    return value
+
+
+def evaluate_math_node(node):
+    """Work out one node of a parsed expression, allowing only the operations listed above."""
+    if isinstance(node, ast.Constant):
+        if isinstance(node.value, bool) or not isinstance(node.value, (int, float)):
+            raise UnsafeMathExpression("only numbers are allowed")
+        return node.value
+    if isinstance(node, ast.Name):
+        value = MATH_NAMES.get(node.id)
+        if value is None or callable(value):
+            raise UnsafeMathExpression(f"unknown name {node.id}")
+        return value
+    if isinstance(node, ast.UnaryOp) and type(node.op) in MATH_UNARY_OPERATORS:
+        return MATH_UNARY_OPERATORS[type(node.op)](evaluate_math_node(node.operand))
+    if isinstance(node, ast.BinOp) and type(node.op) in MATH_BINARY_OPERATORS:
+        left = evaluate_math_node(node.left)
+        right = evaluate_math_node(node.right)
+        if isinstance(node.op, ast.Pow) and isinstance(left, int) and isinstance(right, int) and right > 0:
+            # Check the size before working it out: a huge power can take minutes.
+            if abs(left) > 1 and (abs(left).bit_length() - 1) * right > MATH_MAX_RESULT_BITS:
+                raise UnsafeMathExpression("result too large")
+        return check_math_result_size(MATH_BINARY_OPERATORS[type(node.op)](left, right))
+    if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and not node.keywords:
+        function = MATH_NAMES.get(node.func.id)
+        if function is None or not callable(function):
+            raise UnsafeMathExpression(f"unknown function {node.func.id}")
+        arguments = [evaluate_math_node(argument) for argument in node.args]
+        if node.func.id == "round" and len(arguments) > 1:
+            digits = arguments[1]
+            if not isinstance(digits, int) or abs(digits) > MATH_MAX_ROUND_DIGITS:
+                raise UnsafeMathExpression("round() digits out of range")
+        if node.func.id in MATH_LARGE_RESULT_FUNCTIONS:
+            for argument in arguments:
+                if abs(argument) > MATH_MAX_LARGE_FUNCTION_ARGUMENT:
+                    raise UnsafeMathExpression("argument too large")
+        return check_math_result_size(function(*arguments))
+    raise UnsafeMathExpression(f"{type(node).__name__} is not allowed")
+
+
+def evaluate_math_expression(expression):
+    """Work out a /math expression safely. Raises on anything not allowed, as eval() raised on bad input."""
+    if len(expression) > MATH_MAX_EXPRESSION_LENGTH:
+        raise UnsafeMathExpression("expression too long")
+    return evaluate_math_node(ast.parse(expression, mode="eval").body)
+
+
 class CountryChecklistView(discord.ui.View):
     """The checklist message's buttons: one per continent, plus Done."""
 
@@ -324,13 +413,8 @@ class Utility(commands.Cog):
     async def math(self, interaction: discord.Interaction, expression: str):
         """Evaluates a math expression safely."""
         try:
-            # Allow only safe mathematical functions and numbers:
-            # builds name -> function for everything in the math module except dunder names
-            allowed_names = {name: getattr(math, name) for name in dir(math) if not name.startswith("__")}
-            allowed_names.update({"abs": abs, "round": round})  # Add extra safe functions
-
-            # Evaluate the expression safely
-            result = eval(expression, {"__builtins__": {}}, allowed_names)
+            # Work out the expression from its syntax tree (see evaluate_math_expression)
+            result = evaluate_math_expression(expression)
             await interaction.response.send_message(f"🧮 Result of `{expression}`: **{result}**")
         except Exception:
             if expression == "0/0":
