@@ -4,9 +4,13 @@
 Walks both bots with `ast` (nothing is imported or run) and records, in
 `tests/protected-names.json`:
   - slash command names (with their group) and option names, after any
-    `@app_commands.rename`
+    `@app_commands.rename`, plus each command's description, each option's
+    `@app_commands.describe` text, every `app_commands.Choice` name and value
+    (from `@app_commands.choices`), and which options have an autocomplete
+    (`@app_commands.autocomplete(...)` or `@command.autocomplete("option")`)
   - button and select `custom_id` values
-  - discord.py hooks and listeners, and the `setup` functions
+  - discord.py hooks and listeners, and the `setup` functions, keyed by file
+    and class (`file::Class.method`; module-level ones are `file::name`)
   - the cog module paths `discord-bot/main.py` loads
   - Telegram commands, menu commands, callback data and event handlers
   - the Telethon session name, env keys and data file names
@@ -93,8 +97,34 @@ def is_hook(name):
     return name in HOOK_NAMES or name.startswith(HOOK_PREFIXES)
 
 
+def string_value(node):
+    """The text of a constant node as a str (source text for non-constants)."""
+    return str(constant(node))
+
+
+def choice_list(node):
+    """The `app_commands.Choice(name=..., value=...)` entries of a list node, as dicts."""
+    choices = []
+    if not isinstance(node, (ast.List, ast.Tuple)):
+        return choices
+    for item in node.elts:
+        if isinstance(item, ast.Call) and dotted_name(item.func).endswith("Choice"):
+            name_node = keyword_value(item, "name")
+            value_node = keyword_value(item, "value")
+            # Positional form: Choice("name", "value")
+            if name_node is None and len(item.args) > 0:
+                name_node = item.args[0]
+            if value_node is None and len(item.args) > 1:
+                value_node = item.args[1]
+            choices.append({
+                "name": string_value(name_node) if name_node is not None else "",
+                "value": string_value(value_node) if value_node is not None else "",
+            })
+    return choices
+
+
 def collect_discord_commands(tree, file_label, commands, hooks):
-    """Record slash commands and options found in the classes of one cog file."""
+    """Record slash commands, options, descriptions, choices and autocompletes found in one cog file."""
     for class_node in [node for node in ast.walk(tree) if isinstance(node, ast.ClassDef)]:
         # Group variables: `dev = app_commands.Group(name="dev", ...)`
         groups = {}
@@ -104,59 +134,120 @@ def collect_discord_commands(tree, file_label, commands, hooks):
                 name_node = keyword_value(statement.value, "name")
                 for target in statement.targets:
                     if isinstance(target, ast.Name) and name_node is not None:
-                        groups[target.id] = str(constant(name_node))
+                        groups[target.id] = string_value(name_node)
+        # Names of the command functions in this class, for `@help_command.autocomplete("category")`.
+        command_functions = {}
         for function in class_node.body:
             if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
             command_name = None
             group_name = None
+            description = ""
             renames = {}
+            describes = {}
+            choices = {}
+            autocompletes = set()
             for decorator in function.decorator_list:
                 if not isinstance(decorator, ast.Call):
                     continue
                 target = dotted_name(decorator.func)
-                if target == "app_commands.command":
+                if target == "app_commands.command" or (
+                        target.endswith(".command") and target.split(".")[0] in groups):
                     name_node = keyword_value(decorator, "name")
-                    command_name = str(constant(name_node)) if name_node is not None else function.name
-                elif target.endswith(".command") and target.split(".")[0] in groups:
-                    name_node = keyword_value(decorator, "name")
-                    command_name = str(constant(name_node)) if name_node is not None else function.name
-                    group_name = groups[target.split(".")[0]]
+                    command_name = string_value(name_node) if name_node is not None else function.name
+                    description_node = keyword_value(decorator, "description")
+                    if description_node is not None:
+                        description = string_value(description_node)
+                    if target != "app_commands.command":
+                        group_name = groups[target.split(".")[0]]
                 elif target == "app_commands.rename":
                     for keyword in decorator.keywords:
-                        renames[keyword.arg] = str(constant(keyword.value))
+                        renames[keyword.arg] = string_value(keyword.value)
+                elif target == "app_commands.describe":
+                    for keyword in decorator.keywords:
+                        describes[keyword.arg] = string_value(keyword.value)
+                elif target == "app_commands.choices":
+                    for keyword in decorator.keywords:
+                        choices[keyword.arg] = choice_list(keyword.value)
+                elif target == "app_commands.autocomplete":
+                    for keyword in decorator.keywords:
+                        autocompletes.add(keyword.arg)
             if command_name is None:
                 continue
+            command_functions[function.name] = (function, renames, describes, choices, autocompletes,
+                                                command_name, group_name, description)
+        # `@some_command.autocomplete("option")` sits on a different function from the command.
+        for function in class_node.body:
+            if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            for decorator in function.decorator_list:
+                if (isinstance(decorator, ast.Call) and isinstance(decorator.func, ast.Attribute)
+                        and decorator.func.attr == "autocomplete"
+                        and isinstance(decorator.func.value, ast.Name)
+                        and decorator.func.value.id in command_functions):
+                    for argument in decorator.args:
+                        command_functions[decorator.func.value.id][4].add(string_value(argument))
+        for (function, renames, describes, choices, autocompletes, command_name, group_name,
+             description) in command_functions.values():
             parameters = [argument.arg for argument in function.args.posonlyargs + function.args.args
                           + function.args.kwonlyargs]
             options = [renames.get(parameter, parameter) for parameter in parameters[2:]]  # skip self, interaction
-            commands.append({
+            entry = {
                 "name": f"{group_name} {command_name}" if group_name else command_name,
                 "file": file_label,
                 "options": options,
-            })
+                "description": description,
+            }
+            # Option details are keyed by the visible option name (after any rename).
+            if describes:
+                entry["option_descriptions"] = {renames.get(key, key): text for key, text in sorted(describes.items())}
+            if choices:
+                entry["option_choices"] = {renames.get(key, key): value for key, value in sorted(choices.items())}
+            if autocompletes:
+                entry["option_autocomplete"] = sorted(renames.get(key, key) for key in autocompletes)
+            commands.append(entry)
     # Group commands themselves are protected names too.
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and dotted_name(node.func).endswith("Group"):
             name_node = keyword_value(node, "name")
             if name_node is not None:
-                commands.append({"name": str(constant(name_node)), "file": file_label, "options": ["<group>"]})
+                description_node = keyword_value(node, "description")
+                commands.append({
+                    "name": string_value(name_node),
+                    "file": file_label,
+                    "options": ["<group>"],
+                    "description": string_value(description_node) if description_node is not None else "",
+                })
 
 
 def collect_hooks(tree, file_label, hooks):
-    """Record discord.py hooks, listeners, events and setup functions in one file."""
-    for node in ast.walk(tree):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            continue
-        decorators = [ast.unparse(decorator) for decorator in node.decorator_list]
-        is_event = any(text.endswith(".event") or ".listen" in text or text.endswith("Cog.listener()")
-                       for text in decorators)
-        if is_hook(node.name) or is_event:
-            hooks.append(f"{file_label}::{node.name}")
-        for decorator in node.decorator_list:
-            # @bot.listen("on_socket_response") names the event as a string.
-            if isinstance(decorator, ast.Call) and dotted_name(decorator.func).endswith(".listen") and decorator.args:
-                hooks.append(f"{file_label}::listen({constant(decorator.args[0])})")
+    """Record discord.py hooks, listeners, events and setup functions in one file.
+
+    Each is keyed `file::Class.method` (nested classes joined with dots), or
+    `file::name` for a function outside any class.
+    """
+
+    def visit(node, class_names):
+        for child in ast.iter_child_nodes(node):
+            if isinstance(child, ast.ClassDef):
+                visit(child, class_names + [child.name])
+            elif isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                qualified = ".".join(class_names + [child.name])
+                decorators = [ast.unparse(decorator) for decorator in child.decorator_list]
+                is_event = any(text.endswith(".event") or ".listen" in text or text.endswith("Cog.listener()")
+                               for text in decorators)
+                if is_hook(child.name) or is_event:
+                    hooks.append(f"{file_label}::{qualified}")
+                for decorator in child.decorator_list:
+                    # @bot.listen("on_socket_response") names the event as a string.
+                    if (isinstance(decorator, ast.Call) and dotted_name(decorator.func).endswith(".listen")
+                            and decorator.args):
+                        hooks.append(f"{file_label}::listen({constant(decorator.args[0])})")
+                visit(child, class_names)
+            else:
+                visit(child, class_names)
+
+    visit(tree, [])
 
 
 def collect_custom_ids(tree, file_label, custom_ids):

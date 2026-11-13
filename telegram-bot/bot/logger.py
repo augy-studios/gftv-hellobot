@@ -1,3 +1,4 @@
+"""Logging of incoming Telegram messages and button clicks to the log channel."""
 from telethon import events, TelegramClient
 from .config import LOG_CHANNEL_ID
 
@@ -7,7 +8,7 @@ async def log_event(event: events.NewMessage.Event, client: TelegramClient, log_
     including the bot's reply if provided.
     """
 
-    # Determine the event type and extract details accordingly
+    # Step 1: determine the event type and extract details accordingly
     if isinstance(event, events.NewMessage.Event):
         message_text = event.raw_text
     elif isinstance(event, events.CallbackQuery.Event):
@@ -15,10 +16,14 @@ async def log_event(event: events.NewMessage.Event, client: TelegramClient, log_
     else:
         message_text = "Unknown event type"
     
-    # Basic info from the event
+    # Step 2: basic info from the event
     sender = await event.get_sender()
-    sender_id = sender.id if sender else None
-    sender_username = sender.username if sender else "N/A"
+    if sender:
+        sender_id = sender.id
+        sender_username = sender.username
+    else:
+        sender_id = None
+        sender_username = "N/A"
     
     chat = await event.get_chat()
     chat_id = event.chat_id
@@ -39,10 +44,13 @@ async def log_event(event: events.NewMessage.Event, client: TelegramClient, log_
     if chat_id == LOG_CHANNEL_ID:
         return  # Skip logging messages from the log channel
     
-    # Check if there are attachments (photos, documents, etc.)
-    attachment_info = "Yes (media attached)" if event.message.media else "No"
+    # Step 3: check if there are attachments (photos, documents, etc.)
+    if event.message.media:
+        attachment_info = "Yes (media attached)"
+    else:
+        attachment_info = "No"
     
-    # Build the log message
+    # Step 4: build the log message
     log_text = (
         f"**New Message/Command Logged**\n"
         f"**Chat ID:** {chat_id}\n"
@@ -58,12 +66,12 @@ async def log_event(event: events.NewMessage.Event, client: TelegramClient, log_
     if bot_reply:
         log_text += f"\n**Bot's Reply:** ```{bot_reply}```"
     
-    # Send the log to the specified log channel
+    # Step 5: send the log to the specified log channel
     try:
         # Properly resolve the entity
         await client.send_message(log_channel_id, log_text, link_preview=True)
         print(f"Logging from Channel ID: {chat_id}")
         print(f"Logging to Channel ID: {log_channel_id}")
         print(f"---")
-    except Exception as e:
-        print(f"Failed to send log message: {e}")
+    except Exception as error:
+        print(f"Failed to send log message: {error}")

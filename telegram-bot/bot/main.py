@@ -1,3 +1,4 @@
+"""Entry point of the Telegram bot: command menu, message routing and the HelloBot class."""
 import asyncio
 from telethon import TelegramClient, events
 import os
@@ -13,6 +14,7 @@ from .cogs.botowner import command_dm, command_broadcast
 from .cogs.moderation import command_ban, command_unban
 
 def set_bot_commands():
+    """Register the command menu with Telegram through the Bot API."""
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/setMyCommands"
 
     commands = [
@@ -42,24 +44,29 @@ def set_bot_commands():
         print(f"Failed to set commands: {response.text}")
 
 class HelloBot:
+    """The Telegram bot: owns the Telethon client and its handlers."""
+
     def __init__(self, api_id, api_hash, bot_token, log_channel_id):
+        """Start the Telethon client (session HelloBotSession) with the bot token."""
         self.client = TelegramClient("HelloBotSession", api_id, api_hash).start(bot_token=bot_token)
         self.log_channel_id = log_channel_id
         self.bot_username = None  # To store the bot's username dynamically
 
     async def fetch_bot_username(self):
         """Fetch and store the bot's username dynamically."""
-        me = await self.client.get_me()
-        self.bot_username = me.username.lower()
+        bot_user = await self.client.get_me()
+        self.bot_username = bot_user.username.lower()
             
     def run(self):
+        """Register the message and button handlers, then run until disconnected."""
         @self.client.on(events.NewMessage)
         async def message_handler(event):
-            # Ensure bot username is fetched before processing any messages
+            """Route a message to its command handler, or just log it."""
+            # Step 1: ensure bot username is fetched before processing any messages
             if not self.bot_username:
                 await self.fetch_bot_username()
 
-            # Mapping of commands to their handlers
+            # Step 2: mapping of commands to their handlers
             commands = {
                 "start": command_start,
                 "help": command_help,
@@ -79,7 +86,7 @@ class HelloBot:
                 "broadcast": command_broadcast,
             }
 
-            # Extract and clean the command
+            # Step 3: extract and clean the command
             raw_command = event.raw_text.split()[0][1:].lower()
             if "@" in raw_command:
                 command, mentioned_bot = raw_command.split("@", 1)
@@ -87,7 +94,7 @@ class HelloBot:
                     return  # Ignore commands meant for a different bot
             else:
                 command = raw_command
-            # Get the handler for the command or log the event if no handler is found
+            # Step 4: get the handler for the command or log the event if no handler is found
             handler = commands.get(command)
             if handler:
                 await handler(event, self.client)
@@ -97,6 +104,7 @@ class HelloBot:
         # Register the callback query handler for inline buttons
         @self.client.on(events.CallbackQuery)
         async def callback_handler(event):
+            """Route a button click to the cog that handles it."""
             action = event.data.decode("utf-8")
 
             # Handle botinfo buttons
