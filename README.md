@@ -27,8 +27,11 @@ tools/check_all.sh
   failure.
 - The `requirements.txt` files are UTF-16 for now, hence `iconv`; help desk #19's final job
   converts them to UTF-8.
-- **Protected names** (`tests/protected-names.json`) are the names users and Discord see: slash
-  commands, options, button ids, Telegram commands, hooks. After a rename that's meant to change
-  one, regenerate it with `python3 tools/check_protected_names.py` and review the diff.
-- **The ruff baseline** is in `tests/ruff-baseline.txt` (21 today). Lower it as findings are
+- **Protected names** (`tests/protected-names.json`) are the names and text users and Discord
+  see: slash commands and their descriptions, options with their help text, choices (name and
+  value) and which options autocomplete, button ids, Telegram commands, and hooks, recorded as
+  `file::Class.method`. After a change that's meant to alter one, regenerate it with
+  `python3 tools/check_protected_names.py` and review the diff.
+- The check reads env keys only from literal `os.getenv("KEY")` calls, so keep them literal.
+- **The ruff baseline** is in `tests/ruff-baseline.txt` (20 today). Lower it as findings are
   fixed; the check fails if the count goes up.
