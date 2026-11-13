@@ -1,3 +1,5 @@
+"""Utility commands: random numbers, maths, dice, YouTube thumbnails, link fixes, /say,
+the country checklist, /3dify, /scrape and /translate."""
 import io
 import cv2
 import numpy as np
@@ -23,7 +25,6 @@ import subprocess
 import shlex
 import os
 import requests
-from urllib.parse import urljoin, urlparse
 from core.logger import log_action
 from config import BOT_OWNER_ID
 
@@ -33,7 +34,7 @@ logger = logging.getLogger(__name__)
 DetectorFactory.seed = 0
 
 # Top 20 most used languages mapping to codes
-top20_language_codes = {
+TOP_20_LANGUAGE_CODES = {
     "English": "en",
     "Chinese": "zh-cn",
     "Spanish": "es",
@@ -56,162 +57,241 @@ top20_language_codes = {
     "Javanese": "jv"
 }
 
-top20_languages = list(top20_language_codes.keys())
+TOP_20_LANGUAGES = list(TOP_20_LANGUAGE_CODES.keys())
+
 
 # --------------------------
 # Country Checklist Handlers
 # --------------------------
 class CountryChecklistView(discord.ui.View):
+    """The checklist message's buttons: one per continent, plus Done."""
+
     def __init__(self, continents: dict[str, list[str]], owner: discord.User):
+        """Keep the continents and the owner, start with nothing chosen, and add the buttons."""
         super().__init__(timeout=None)
         self.continents = continents
         self.owner = owner
         self.init_message: discord.Message  # set after send
-        self.selections = {c: set() for c in continents}
-        for c in continents:
-            self.add_item(ContinentButton(c))
+        # builds an empty set of chosen countries for each continent
+        self.selections = {continent: set() for continent in continents}
+        for continent in continents:
+            self.add_item(ContinentButton(continent))
         self.add_item(DoneButton())
 
     async def update_embed(self, interaction: discord.Interaction):
+        """Rewrite each continent's field of the checklist message with the countries chosen so far."""
         # Edit the stored embed message
-        msg = self.init_message
-        embed = msg.embeds[0]
-        for idx, cont in enumerate(self.continents):
-            chosen = sorted(self.selections.get(cont, []))
-            embed.set_field_at(idx, name=cont, value=(", ".join(chosen) if chosen else "None"), inline=True)
-        await msg.edit(embed=embed, view=self)
+        message = self.init_message
+        embed = message.embeds[0]
+        for field_index, continent in enumerate(self.continents):
+            chosen_countries = sorted(self.selections.get(continent, []))
+            if chosen_countries:
+                field_value = ", ".join(chosen_countries)
+            else:
+                field_value = "None"
+            embed.set_field_at(field_index, name=continent, value=field_value, inline=True)
+        await message.edit(embed=embed, view=self)
+
 
 class ContinentButton(discord.ui.Button):
+    """The button for one continent, which opens its country picker."""
+
     def __init__(self, continent: str):
+        """Make the button, labelled with the continent."""
         super().__init__(style=discord.ButtonStyle.primary, label=continent)
         self.continent = continent
 
     async def callback(self, interaction: discord.Interaction):
-        view: CountryChecklistView = self.view  # type: ignore
-        if interaction.user.id != view.owner.id:
+        """Send the owner a private, paged picker of this continent's countries."""
+        checklist_view: CountryChecklistView = self.view  # type: ignore
+        if interaction.user.id != checklist_view.owner.id:
             return await interaction.response.send_message("This isn't yours.", ephemeral=True)
 
-        countries = view.continents.get(self.continent, [])
-        paged = PaginatedSelectView(countries, self.continent, view)
+        countries = checklist_view.continents.get(self.continent, [])
+        paginator_view = PaginatedSelectView(countries, self.continent, checklist_view)
         await interaction.response.send_message(
-            f"Select in **{self.continent}** (page 1/{paged.total_pages}):",
-            view=paged,
+            f"Select in **{self.continent}** (page 1/{paginator_view.total_pages}):",
+            view=paginator_view,
             ephemeral=True
         )
 
+
 class PaginatedSelectView(discord.ui.View):
+    """The country picker for one continent, 25 countries to a page."""
+
     def __init__(self, options: list[str], continent: str, parent: CountryChecklistView):
+        """Split the countries into pages and show the first one."""
         super().__init__(timeout=None)
         self.options = options
         self.continent = continent
         self.parent = parent
         self.page_size = 25
-        self.pages = [options[i:i+self.page_size] for i in range(0, len(options), self.page_size)]
+        # builds the pages: slices of up to page_size countries each
+        self.pages = [options[start_index:start_index + self.page_size]
+                      for start_index in range(0, len(options), self.page_size)]
         self.page = 0
         self.total_pages = len(self.pages)
         self.page_selections: dict[int, set[str]] = {}
         self.update_components()
 
     def update_components(self):
+        """Rebuild the controls for the current page: the country select, previous, next and Submit."""
         self.clear_items()
-        opts = [discord.SelectOption(label=o, value=o) for o in self.pages[self.page]]
-        self.add_item(PageSelect(opts, self))
-        prev_btn = PrevButton(); prev_btn.disabled = self.page == 0
-        self.add_item(prev_btn)
-        next_btn = NextButton(); next_btn.disabled = self.page == self.total_pages - 1
-        self.add_item(next_btn)
+        # builds one select option per country on this page
+        select_options = [discord.SelectOption(label=country, value=country) for country in self.pages[self.page]]
+        self.add_item(PageSelect(select_options, self))
+        previous_button = PrevButton()
+        previous_button.disabled = self.page == 0
+        self.add_item(previous_button)
+        next_button = NextButton()
+        next_button.disabled = self.page == self.total_pages - 1
+        self.add_item(next_button)
         self.add_item(SubmitButton(self.continent, self.parent))
 
     async def refresh(self, interaction: discord.Interaction):
+        """Show the current page in the picker message."""
         await interaction.response.edit_message(
-            content=f"Select in **{self.continent}** (page {self.page+1}/{self.total_pages}):",
+            content=f"Select in **{self.continent}** (page {self.page + 1}/{self.total_pages}):",
             view=self
         )
 
+
 class PageSelect(discord.ui.Select):
-    def __init__(self, options: list[discord.SelectOption], view: PaginatedSelectView):
+    """The country select for one page of the picker."""
+
+    def __init__(self, options: list[discord.SelectOption], paginator_view: PaginatedSelectView):
+        """Make the select; any number of this page's countries can be chosen."""
         super().__init__(placeholder="Choose countries…", min_values=0, max_values=len(options), options=options)
-        self.pview = view
+        self.paginator_view = paginator_view
 
     async def callback(self, interaction: discord.Interaction):
-        self.pview.page_selections[self.pview.page] = set(self.values)
+        """Remember the countries chosen on this page."""
+        self.paginator_view.page_selections[self.paginator_view.page] = set(self.values)
         await interaction.response.defer()
 
+
 class PrevButton(discord.ui.Button):
-    def __init__(self): super().__init__(style=discord.ButtonStyle.secondary, label="◀️")
+    """The button that goes back one page."""
+
+    def __init__(self):
+        """Make the ◀️ button."""
+        super().__init__(style=discord.ButtonStyle.secondary, label="◀️")
+
     async def callback(self, interaction: discord.Interaction):
-        view: PaginatedSelectView = self.view  # type: ignore
-        view.page -= 1; view.update_components()
-        await view.refresh(interaction)
+        """Show the previous page."""
+        paginator_view: PaginatedSelectView = self.view  # type: ignore
+        paginator_view.page -= 1
+        paginator_view.update_components()
+        await paginator_view.refresh(interaction)
+
 
 class NextButton(discord.ui.Button):
-    def __init__(self): super().__init__(style=discord.ButtonStyle.secondary, label="▶️")
+    """The button that goes forward one page."""
+
+    def __init__(self):
+        """Make the ▶️ button."""
+        super().__init__(style=discord.ButtonStyle.secondary, label="▶️")
+
     async def callback(self, interaction: discord.Interaction):
-        view: PaginatedSelectView = self.view  # type: ignore
-        view.page += 1; view.update_components()
-        await view.refresh(interaction)
+        """Show the next page."""
+        paginator_view: PaginatedSelectView = self.view  # type: ignore
+        paginator_view.page += 1
+        paginator_view.update_components()
+        await paginator_view.refresh(interaction)
+
 
 class SubmitButton(discord.ui.Button):
+    """The Submit button, which saves the picker's choices to the checklist."""
+
     def __init__(self, continent: str, parent: CountryChecklistView):
+        """Make the Submit button for one continent of the checklist."""
         super().__init__(style=discord.ButtonStyle.success, label="Submit")
-        self.continent = continent; self.parent = parent
+        self.continent = continent
+        self.parent = parent
+
     async def callback(self, interaction: discord.Interaction):
+        """Save the countries chosen on every page, update the checklist and close the picker."""
         await interaction.response.defer(ephemeral=True)
-        pview: PaginatedSelectView = self.view  # type: ignore
-        sel = set().union(*pview.page_selections.values()) if pview.page_selections else set()
-        self.parent.selections[self.continent] = sel
+        paginator_view: PaginatedSelectView = self.view  # type: ignore
+        if paginator_view.page_selections:
+            selection = set().union(*paginator_view.page_selections.values())
+        else:
+            selection = set()
+        self.parent.selections[self.continent] = selection
         await self.parent.update_embed(interaction)
         await interaction.message.edit(content="✅ Selection saved.", view=None)
 
+
 class DoneButton(discord.ui.Button):
-    def __init__(self): super().__init__(style=discord.ButtonStyle.success, label="Done")
+    """The Done button, which adds up the checklist and posts the result."""
+
+    def __init__(self):
+        """Make the Done button."""
+        super().__init__(style=discord.ButtonStyle.success, label="Done")
+
     async def callback(self, interaction: discord.Interaction):
-        view: CountryChecklistView = self.view  # type: ignore
-        if interaction.user.id != view.owner.id:
+        """Add the owner's total to the checklist, close it, and post the result in the channel."""
+        checklist_view: CountryChecklistView = self.view  # type: ignore
+        if interaction.user.id != checklist_view.owner.id:
             return await interaction.response.send_message("This isn't yours.", ephemeral=True)
-        total_selected = sum(len(v) for v in view.selections.values())
-        total_countries = sum(len(v) for v in view.continents.values())
-        pct = (total_selected/total_countries*100) if total_countries else 0
-        msg = view.init_message
-        embed = msg.embeds[0]
+        # adds up the countries chosen across all continents
+        total_selected = sum(len(chosen_countries) for chosen_countries in checklist_view.selections.values())
+        # adds up all the countries in the list
+        total_countries = sum(len(countries) for countries in checklist_view.continents.values())
+        if total_countries:
+            percent = (total_selected / total_countries * 100)
+        else:
+            percent = 0
+        message = checklist_view.init_message
+        embed = message.embeds[0]
         embed.add_field(name="Results",
-                        value=f"{view.owner.mention} has been to **{total_selected}**/**{total_countries}** ({pct:.2f}%) of the world!",
+                        value=f"{checklist_view.owner.mention} has been to **{total_selected}**/**{total_countries}** ({percent:.2f}%) of the world!",
                         inline=False)
-        await msg.edit(embed=embed, view=None)
-        await msg.channel.send(embed=embed)
+        await message.edit(embed=embed, view=None)
+        await message.channel.send(embed=embed)
+
 
 # --------------------------
 # Translation Handlers
 # --------------------------
 class TranslateView(discord.ui.View):
-    def __init__(self, original_text: str, translated_text: str, src_code: str, dest_code: str):
+    """The buttons under a translation that read the original or the translation aloud."""
+
+    def __init__(self, original_text: str, translated_text: str, source_language_code: str, target_language_code: str):
+        """Keep both texts and their language codes for the buttons."""
         super().__init__(timeout=None)
         self.original_text = original_text
         self.translated_text = translated_text
-        self.src_code = src_code
-        self.dest_code = dest_code
+        self.source_language_code = source_language_code
+        self.target_language_code = target_language_code
 
     @discord.ui.button(label="🔊 Listen to original", style=discord.ButtonStyle.primary)
     async def listen_original(self, interaction: discord.Interaction, button: discord.ui.Button):
+        """Send the original text as an MP3 of speech."""
         # Use detected or specified language code for original
-        tts = gTTS(text=self.original_text, lang=self.src_code)
-        fp = BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        file = discord.File(fp, filename="original.mp3")
-        await interaction.response.send_message(content="Original text audio:", file=file)
+        text_to_speech = gTTS(text=self.original_text, lang=self.source_language_code)
+        audio_file = BytesIO()
+        text_to_speech.write_to_fp(audio_file)
+        audio_file.seek(0)
+        attachment = discord.File(audio_file, filename="original.mp3")
+        await interaction.response.send_message(content="Original text audio:", file=attachment)
 
     @discord.ui.button(label="🔊 Listen to translated", style=discord.ButtonStyle.primary)
     async def listen_translated(self, interaction: discord.Interaction, button: discord.ui.Button):
-        tts = gTTS(text=self.translated_text, lang=self.dest_code)
-        fp = BytesIO()
-        tts.write_to_fp(fp)
-        fp.seek(0)
-        file = discord.File(fp, filename="translated.mp3")
-        await interaction.response.send_message(content="Translated text audio:", file=file)
+        """Send the translated text as an MP3 of speech."""
+        text_to_speech = gTTS(text=self.translated_text, lang=self.target_language_code)
+        audio_file = BytesIO()
+        text_to_speech.write_to_fp(audio_file)
+        audio_file.seek(0)
+        attachment = discord.File(audio_file, filename="translated.mp3")
+        await interaction.response.send_message(content="Translated text audio:", file=attachment)
+
 
 class Utility(commands.Cog):
+    """The utility commands, and the helpers behind /countrychecklist, /3dify, /scrape and /translate."""
+
     def __init__(self, bot):
+        """Start loading the country list in the background and set up the lookups the commands use."""
         self.bot = bot
         # Kick off an initial load
         self._load_task = bot.loop.create_task(self._load_countries())
@@ -221,20 +301,22 @@ class Utility(commands.Cog):
         self.visited_pages = set()
         self.downloaded_resources = {}  # resource_url -> local_path
 
-        # Map language names to codes
-        self.lang_name_to_code = {name.lower(): code for name, code in top20_language_codes.items()}
-        # Map codes to display names
-        self.code_to_name = {code: name for name, code in top20_language_codes.items()}
-    
+        # Map language names to codes: builds lower-case language name -> code
+        self.language_name_to_code = {name.lower(): code for name, code in TOP_20_LANGUAGE_CODES.items()}
+        # Map codes to display names: builds code -> language name
+        self.language_code_to_name = {code: name for name, code in TOP_20_LANGUAGE_CODES.items()}
+
     @app_commands.command(name="randnum", description="Generate a random number between a given range.")
-    @app_commands.describe(min_num="The minimum number", max_num="The maximum number")
-    async def randnum(self, interaction: discord.Interaction, min_num: int, max_num: int):
-        if min_num > max_num:
+    @app_commands.describe(minimum_number="The minimum number", maximum_number="The maximum number")
+    @app_commands.rename(minimum_number="min_num", maximum_number="max_num")
+    async def randnum(self, interaction: discord.Interaction, minimum_number: int, maximum_number: int):
+        """Send a random whole number between the minimum and maximum, inclusive."""
+        if minimum_number > maximum_number:
             await interaction.response.send_message("❌ The minimum number cannot be greater than the maximum number.", ephemeral=True)
             return
 
-        result = random.randint(min_num, max_num)
-        await interaction.response.send_message(f"🎲 Random number between {min_num} and {max_num}: **{result}**")
+        result = random.randint(minimum_number, maximum_number)
+        await interaction.response.send_message(f"🎲 Random number between {minimum_number} and {maximum_number}: **{result}**")
         await log_action(self.bot, interaction)
 
     @app_commands.command(name="math", description="Solve a math expression.")
@@ -242,10 +324,11 @@ class Utility(commands.Cog):
     async def math(self, interaction: discord.Interaction, expression: str):
         """Evaluates a math expression safely."""
         try:
-            # Allow only safe mathematical functions and numbers
+            # Allow only safe mathematical functions and numbers:
+            # builds name -> function for everything in the math module except dunder names
             allowed_names = {name: getattr(math, name) for name in dir(math) if not name.startswith("__")}
             allowed_names.update({"abs": abs, "round": round})  # Add extra safe functions
-            
+
             # Evaluate the expression safely
             result = eval(expression, {"__builtins__": {}}, allowed_names)
             await interaction.response.send_message(f"🧮 Result of `{expression}`: **{result}**")
@@ -255,48 +338,56 @@ class Utility(commands.Cog):
             else:
                 await interaction.response.send_message("❌ Invalid mathematical expression.", ephemeral=True)
         await log_action(self.bot, interaction)
-    
+
     @app_commands.command(name="roll", description="Roll dice in the format XdY (e.g., /roll 4d8 or /roll d20).")
     @app_commands.describe(dice="The dice format (e.g., 4d8 or d20)")
     async def roll(self, interaction: discord.Interaction, dice: str):
+        """Roll dice written as XdY (or dY for one die) and send each roll and the total."""
+        # Read the number of dice (1 if left out) and the number of sides
         match = re.fullmatch(r'(\d*)d(\d+)', dice.strip())
         if not match:
             await interaction.response.send_message("❌ Invalid format! Use XdY (e.g., 4d8 or d20).", ephemeral=True)
             return
 
-        num_dice = int(match.group(1)) if match.group(1) else 1
-        num_sides = int(match.group(2))
+        if match.group(1):
+            number_of_dice = int(match.group(1))
+        else:
+            number_of_dice = 1
+        number_of_sides = int(match.group(2))
 
-        if num_dice <= 0 or num_sides <= 0:
+        # Check the numbers
+        if number_of_dice <= 0 or number_of_sides <= 0:
             await interaction.response.send_message("❌ The number of dice and sides must be positive integers.", ephemeral=True)
             return
-        
-        if num_dice > 100 or num_sides > 100:
+
+        # There's no return after this warning, so the roll still goes ahead as a second reply.
+        if number_of_dice > 100 or number_of_sides > 100:
             await interaction.response.send_message("❌ The number of dice and sides must be 100 or less.", ephemeral=True)
 
-        # Roll the dice and calculate results
-        rolls = [random.randint(1, num_sides) for _ in range(num_dice)]
+        # Roll the dice and calculate results: builds one random roll per die
+        rolls = [random.randint(1, number_of_sides) for _ in range(number_of_dice)]
         total = sum(rolls)
 
-        # Prepare response message
-        roll_results = "\n".join([f"Dice {i + 1}: {roll}" for i, roll in enumerate(rolls)])
+        # Prepare response message: builds one "Dice N: roll" line per die
+        roll_results = "\n".join([f"Dice {roll_index + 1}: {roll}" for roll_index, roll in enumerate(rolls)])
         response = f"{roll_results}\n**Total:** {total}"
 
-        await interaction.response.send_message(f"🎲 Rolling {num_dice}d{num_sides}:\n{response}")
+        await interaction.response.send_message(f"🎲 Rolling {number_of_dice}d{number_of_sides}:\n{response}")
         await log_action(self.bot, interaction)
 
     @app_commands.command(name="ytimg", description="Get the thumbnail image of a YouTube video.")
     @app_commands.describe(link_or_id="The YouTube video link or ID")
     async def ytimg(self, interaction: discord.Interaction, link_or_id: str):
+        """Send the full-size thumbnail of a YouTube video, from its link or id."""
         # Regular expression patterns to extract video ID
-        yt_patterns = [
+        youtube_patterns = [
             r"(?:https?://)?(?:www\.|m\.)?(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/shorts/)([\w-]+)",  # YouTube long/shorts links
             r"(?:https?://)?(?:www\.|m\.)?youtube\.com/embed/([\w-]+)",  # Embedded video link
             r"^[\w-]{11}$"  # Direct video ID
         ]
 
         video_id = None
-        for pattern in yt_patterns:
+        for pattern in youtube_patterns:
             match = re.search(pattern, link_or_id)
             if match:
                 video_id = match.group(1)
@@ -355,6 +446,7 @@ class Utility(commands.Cog):
         message: str,
         channel: Optional[TextChannel] = None
     ):
+        """Post a message as the bot, here or in another channel (bot owner or Manage Messages only)."""
         # Permission check
         if not interaction.user.id == BOT_OWNER_ID:
             if not interaction.user.guild_permissions.manage_messages:
@@ -367,9 +459,9 @@ class Utility(commands.Cog):
         await interaction.followup.send("Processing…", ephemeral=True)
 
         # Determine target channel
-        target: TextChannel = channel or interaction.channel  # type: ignore
+        target_channel: TextChannel = channel or interaction.channel  # type: ignore
         # Send the user message, preserving newlines
-        await target.send(message.replace("\\n", "\n"))
+        await target_channel.send(message.replace("\\n", "\n"))
         await log_action(self.bot, interaction)
 
     # -------------------------
@@ -380,24 +472,28 @@ class Utility(commands.Cog):
         # restcountries.com v3.1 was shut down (v5 needs an API key), so the list ships with the bot.
         path = os.path.join(os.path.dirname(__file__), "countries.json")
         try:
-            with open(path, encoding="utf-8") as f:
-                data = json.load(f)
-            if not isinstance(data, dict):
+            with open(path, encoding="utf-8") as countries_file:
+                country_data = json.load(countries_file)
+            if not isinstance(country_data, dict):
                 raise ValueError("countries.json must be a JSON object of continent -> [countries]")
-        except Exception as e:
-            logger.error(f"Failed to load country data: {e}")
+        except Exception as error:
+            logger.error(f"Failed to load country data: {error}")
             self.continents = {}
             return
 
-        continents = {cont: sorted(names) for cont, names in data.items() if names}
+        # builds continent -> sorted country names, leaving out empty continents
+        continents = {continent: sorted(country_names) for continent, country_names in country_data.items() if country_names}
         self.continents = continents
-        logger.info(f"Loaded {sum(len(v) for v in continents.values())} countries across {len(continents)} continents.")
+        # adds up the countries across all continents
+        country_count = sum(len(country_names) for country_names in continents.values())
+        logger.info(f"Loaded {country_count} countries across {len(continents)} continents.")
 
     @app_commands.command(
         name="countrychecklist",
         description="Mark which countries you've been to, by continent."
     )
     async def countrychecklist(self, interaction: discord.Interaction):
+        """Send a private checklist of countries, one button per continent."""
         # Wait for the initial load; retry on failure
         await self._load_task
         if not getattr(self, 'continents', None):
@@ -411,8 +507,8 @@ class Utility(commands.Cog):
         if not self.continents:
             embed.description = "⚠️ Country data unavailable. Please try again later."
         else:
-            for cont in self.continents:
-                embed.add_field(name=cont, value="None", inline=True)
+            for continent in self.continents:
+                embed.add_field(name=continent, value="None", inline=True)
 
         view = CountryChecklistView(self.continents, interaction.user)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
@@ -429,17 +525,17 @@ class Utility(commands.Cog):
         then exports to PNG, GIF, OBJ, or STL. Returns raw bytes and a suggested filename.
         """
         # Load image as grayscale
-        arr = np.frombuffer(image_bytes, np.uint8)
-        img = cv2.imdecode(arr, cv2.IMREAD_GRAYSCALE)
+        image_array = np.frombuffer(image_bytes, np.uint8)
+        grayscale_image = cv2.imdecode(image_array, cv2.IMREAD_GRAYSCALE)
         # Map intensities [0,255] to height levels [0, thickness]
-        hmap = (img.astype(np.float32) / 255.0 * thickness).astype(np.int32)
-        h, w = hmap.shape
-        # Build voxel grid
-        vol = np.zeros((h, w, thickness), dtype=bool)
-        for z in range(thickness):
-            vol[:, :, z] = hmap > z
+        height_map = (grayscale_image.astype(np.float32) / 255.0 * thickness).astype(np.int32)
+        height, width = height_map.shape
+        # Build voxel grid: each level is filled where the pixel is taller than it
+        voxels = np.zeros((height, width, thickness), dtype=bool)
+        for level in range(thickness):
+            voxels[:, :, level] = height_map > level
         # Create mesh via marching cubes (requires scikit-image)
-        mesh = trimesh.voxel.ops.matrix_to_marching_cubes(vol)
+        mesh = trimesh.voxel.ops.matrix_to_marching_cubes(voxels)
 
         # OBJ / STL export
         if output_type in ('obj', 'stl'):
@@ -449,18 +545,19 @@ class Utility(commands.Cog):
         # Render scene for images
         scene = mesh.scene()
         if output_type == 'png':
-            img_bytes = scene.save_image(resolution=(512, 512))
-            return img_bytes, "output.png"
+            png_bytes = scene.save_image(resolution=(512, 512))
+            return png_bytes, "output.png"
         elif output_type == 'gif':
+            # One frame every 60 degrees round the model, joined into a looping GIF
             frames = []
             for angle in range(0, 360, 60):
                 scene.camera.transform = trimesh.transformations.euler_matrix(0, 0, np.radians(angle))
                 frame_bytes = scene.save_image(resolution=(512, 512))
                 frames.append(Image.open(BytesIO(frame_bytes)))
-            gif_buf = BytesIO()
-            frames[0].save(gif_buf, format='GIF', save_all=True,
+            gif_buffer = BytesIO()
+            frames[0].save(gif_buffer, format='GIF', save_all=True,
                            append_images=frames[1:], duration=100, loop=0)
-            return gif_buf.getvalue(), "output.gif"
+            return gif_buffer.getvalue(), "output.gif"
 
         # Fallback
         return image_bytes, "output.png"
@@ -504,16 +601,16 @@ class Utility(commands.Cog):
         await interaction.response.defer()
 
         # Read and process
-        img_bytes = await image.read()
-        result_bytes, sugg_name = self.convert_to_3d(
-            image_bytes=img_bytes,
+        uploaded_image_bytes = await image.read()
+        result_bytes, suggested_name = self.convert_to_3d(
+            image_bytes=uploaded_image_bytes,
             thickness=thickness,
             output_type=output_type.value,
         )
         # Construct new filename from original
         base_name = image.filename.rsplit('.', 1)[0]
-        ext = sugg_name.rsplit('.', 1)[-1]
-        new_filename = f"{base_name}_3dified.{ext}"
+        extension = suggested_name.rsplit('.', 1)[-1]
+        new_filename = f"{base_name}_3dified.{extension}"
 
         # Send file
         file = discord.File(io.BytesIO(result_bytes), filename=new_filename)
@@ -523,93 +620,110 @@ class Utility(commands.Cog):
     # -------------------------
     # ----- Scrape Handler ----
     # -------------------------
-    def get_local_path(self, url: str, base_output_dir: str) -> str:
-        parsed = requests.utils.urlparse(url)
-        path = parsed.path or "/"
+    def get_local_path(self, url: str, base_output_directory: str) -> str:
+        """Where a URL is saved locally: <output folder>/<host>/<path>, with index.html for a folder path."""
+        parsed_url = requests.utils.urlparse(url)
+        path = parsed_url.path or "/"
         if path.endswith("/"):
             path = os.path.join(path, "index.html")
-        return os.path.join(base_output_dir, parsed.netloc, path.lstrip("/"))
+        return os.path.join(base_output_directory, parsed_url.netloc, path.lstrip("/"))
 
     def download_file(self, url: str, local_path: str) -> bool:
+        """Download a URL to a local file; return True on success, False (after printing why) on failure."""
         try:
             response = requests.get(url, stream=True, timeout=10)
             response.raise_for_status()
             os.makedirs(os.path.dirname(local_path), exist_ok=True)
-            with open(local_path, "wb") as f:
+            with open(local_path, "wb") as output_file:
                 for chunk in response.iter_content(chunk_size=8192):
                     if chunk:
-                        f.write(chunk)
+                        output_file.write(chunk)
             return True
-        except Exception as e:
-            print(f"Error downloading {url}: {e}")
+        except Exception as error:
+            print(f"Error downloading {url}: {error}")
             return False
 
-    def scrape_page(self, url: str, base_output_dir: str, base_domain: str):
+    def scrape_page(self, url: str, base_output_directory: str, base_domain: str):
+        """Save a page and the files it uses, point it at the local copies, then follow its same-site links."""
+        # Skip a page that's already been visited
         if url in self.visited_pages:
             return
         self.visited_pages.add(url)
+
+        # Fetch the page
         try:
-            resp = requests.get(url, timeout=10)
-            resp.raise_for_status()
-        except Exception as e:
-            print(f"Error accessing {url}: {e}")
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+        except Exception as error:
+            print(f"Error accessing {url}: {error}")
             return
-        if "text/html" not in resp.headers.get("Content-Type", ""):
-            self.download_file(url, self.get_local_path(url, base_output_dir))
-            return
-        soup = BeautifulSoup(resp.text, "lxml")
 
-        def process_resource(tag, attr):
-            if not tag.has_attr(attr):
+        # Save anything that isn't HTML as it is
+        if "text/html" not in response.headers.get("Content-Type", ""):
+            self.download_file(url, self.get_local_path(url, base_output_directory))
+            return
+        soup = BeautifulSoup(response.text, "lxml")
+
+        def process_resource(tag, attribute):
+            """Download the file a tag points to (once) and point the tag at the local copy."""
+            if not tag.has_attr(attribute):
                 return
-            orig = tag[attr]
-            resource_url = requests.compat.urljoin(url, orig)
-            local_res = self.get_local_path(resource_url, base_output_dir)
+            original_url = tag[attribute]
+            resource_url = requests.compat.urljoin(url, original_url)
+            local_resource_path = self.get_local_path(resource_url, base_output_directory)
             if resource_url not in self.downloaded_resources:
-                if self.download_file(resource_url, local_res):
-                    self.downloaded_resources[resource_url] = local_res
-            tag[attr] = os.path.relpath(local_res,
-                                        os.path.dirname(self.get_local_path(url, base_output_dir)))
+                if self.download_file(resource_url, local_resource_path):
+                    self.downloaded_resources[resource_url] = local_resource_path
+            tag[attribute] = os.path.relpath(local_resource_path,
+                                             os.path.dirname(self.get_local_path(url, base_output_directory)))
 
-        for img in soup.find_all("img", src=True): process_resource(img, "src")
-        for script in soup.find_all("script", src=True): process_resource(script, "src")
-        for link in soup.find_all("link", href=True):
-            if link.get("rel") and "stylesheet" in link.get("rel"):
-                process_resource(link, "href")
-        for media in soup.find_all(["video", "audio"], src=True): process_resource(media, "src")
+        # Download the page's images, scripts, stylesheets, video and audio
+        for image_tag in soup.find_all("img", src=True):
+            process_resource(image_tag, "src")
+        for script_tag in soup.find_all("script", src=True):
+            process_resource(script_tag, "src")
+        for link_tag in soup.find_all("link", href=True):
+            if link_tag.get("rel") and "stylesheet" in link_tag.get("rel"):
+                process_resource(link_tag, "href")
+        for media_tag in soup.find_all(["video", "audio"], src=True):
+            process_resource(media_tag, "src")
 
-        local_html = self.get_local_path(url, base_output_dir)
+        # Save the page, now pointing at the local copies
+        local_html = self.get_local_path(url, base_output_directory)
         os.makedirs(os.path.dirname(local_html), exist_ok=True)
-        with open(local_html, "w", encoding="utf-8") as f:
-            f.write(str(soup))
+        with open(local_html, "w", encoding="utf-8") as html_file:
+            html_file.write(str(soup))
 
-        for a in soup.find_all("a", href=True):
-            next_url = requests.compat.urljoin(url, a["href"])
+        # Follow the links that stay on the same site
+        for anchor_tag in soup.find_all("a", href=True):
+            next_url = requests.compat.urljoin(url, anchor_tag["href"])
             if requests.utils.urlparse(next_url).netloc == base_domain:
-                self.scrape_page(next_url, base_output_dir, base_domain)
+                self.scrape_page(next_url, base_output_directory, base_domain)
 
     def upload_with_npm_cli(self, file_path: str) -> str:
         """
         Uploads via uploadr-cli (npm package). Requires `npm install -g uploadr-cli`.
         """
-        cmd = f"uploadr upload {shlex.quote(file_path)}"
-        proc = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-        if proc.returncode != 0:
-            raise RuntimeError(f"uploadr-cli failed: {proc.stderr.strip()}")
-        return proc.stdout.strip()
+        command = f"uploadr upload {shlex.quote(file_path)}"
+        completed_process = subprocess.run(command, shell=True, capture_output=True, text=True)
+        if completed_process.returncode != 0:
+            raise RuntimeError(f"uploadr-cli failed: {completed_process.stderr.strip()}")
+        return completed_process.stdout.strip()
 
     def perform_scrape_and_package(self, url: str) -> str:
-        base_output_dir = "scraped_site"
-        shutil.rmtree(base_output_dir, ignore_errors=True)
+        """Scrape a site into a fresh scraped_site folder, zip it, and return the zip's path."""
+        base_output_directory = "scraped_site"
+        shutil.rmtree(base_output_directory, ignore_errors=True)
         self.visited_pages.clear()
         self.downloaded_resources.clear()
-        os.makedirs(base_output_dir, exist_ok=True)
-        self.scrape_page(url, base_output_dir, requests.utils.urlparse(url).netloc)
-        return shutil.make_archive(base_output_dir, 'zip', base_output_dir)
+        os.makedirs(base_output_directory, exist_ok=True)
+        self.scrape_page(url, base_output_directory, requests.utils.urlparse(url).netloc)
+        return shutil.make_archive(base_output_directory, 'zip', base_output_directory)
 
     @app_commands.command(name="scrape",
                           description="Scrape and ZIP a site, then send or upload via uploadr-cli.")
     async def scrape(self, interaction: Interaction, url: str):
+        """Scrape a site and send it as a ZIP, or upload it with uploadr-cli if it's over 500MB (allowed users only)."""
         if interaction.user.id not in self.valid_users:
             await interaction.response.send_message(
                 "You do not have permission to execute this command.", ephemeral=True
@@ -619,16 +733,16 @@ class Utility(commands.Cog):
         zip_path = ''
         try:
             zip_path = await asyncio.to_thread(self.perform_scrape_and_package, url)
-            size = os.path.getsize(zip_path)
-            if size <= 500 * 1024 * 1024:
+            archive_size = os.path.getsize(zip_path)
+            if archive_size <= 500 * 1024 * 1024:
                 await interaction.followup.send(file=discord.File(zip_path))
                 return
             await interaction.followup.send("Archive exceeds 500MB, uploading via uploadr-cli...")
             link = await asyncio.to_thread(self.upload_with_npm_cli, zip_path)
             await interaction.followup.send(f"Uploaded via uploadr-cli: {link}")
-        except Exception as e:
+        except Exception as error:
             await interaction.followup.send(
-                f"Upload failed: {e}\nPlease ensure uploadr-cli is installed and in your PATH, or download the ZIP directly."
+                f"Upload failed: {error}\nPlease ensure uploadr-cli is installed and in your PATH, or download the ZIP directly."
             )
         finally:
             await asyncio.to_thread(shutil.rmtree, "scraped_site", True)
@@ -642,62 +756,68 @@ class Utility(commands.Cog):
 
     async def source_autocomplete(self, interaction: discord.Interaction, current: str):
         """Autocomplete for source language: includes 'Auto' + top20."""
-        entries = ['Auto'] + top20_languages
-        return [app_commands.Choice(name=lang, value=lang)
-                for lang in entries if current.lower() in lang.lower()][:25]
+        language_entries = ['Auto'] + TOP_20_LANGUAGES
+        # builds a choice for each language that contains what's been typed, at most 25
+        return [app_commands.Choice(name=language, value=language)
+                for language in language_entries if current.lower() in language.lower()][:25]
 
     async def target_autocomplete(self, interaction: discord.Interaction, current: str):
         """Autocomplete for target language: only top20."""
-        return [app_commands.Choice(name=lang, value=lang)
-                for lang in top20_languages if current.lower() in lang.lower()][:25]
+        # builds a choice for each language that contains what's been typed, at most 25
+        return [app_commands.Choice(name=language, value=language)
+                for language in TOP_20_LANGUAGES if current.lower() in language.lower()][:25]
 
     @app_commands.command(name="translate", description="Translate text between languages.")
     @app_commands.describe(
         text="Text to translate",
-        from_lang="Source language (default: auto-detect)",
-        to_lang="Target language"
+        from_language="Source language (default: auto-detect)",
+        to_language="Target language"
     )
-    @app_commands.autocomplete(from_lang=source_autocomplete, to_lang=target_autocomplete)
+    @app_commands.rename(from_language="from_lang", to_language="to_lang")
+    @app_commands.autocomplete(from_language=source_autocomplete, to_language=target_autocomplete)
     async def translate(
         self,
         interaction: discord.Interaction,
         text: str,
-        to_lang: str,
-        from_lang: str = 'Auto'
+        to_language: str,
+        from_language: str = 'Auto'
     ):
+        """Translate text into another language, with buttons that read both versions aloud."""
         await interaction.response.defer()
 
         # Determine source language code and display name
-        if from_lang.lower() == 'auto':
+        if from_language.lower() == 'auto':
             detected_code = detect(text)
-            src_code = detected_code
-            src_display = self.code_to_name.get(src_code, src_code)
-            src_name = f"Auto-detected ({src_display})"
+            source_language_code = detected_code
+            source_display_name = self.language_code_to_name.get(source_language_code, source_language_code)
+            source_label = f"Auto-detected ({source_display_name})"
         else:
-            src_code = self.lang_name_to_code.get(from_lang.lower(), from_lang)
-            src_name = self.code_to_name.get(src_code, from_lang)
+            source_language_code = self.language_name_to_code.get(from_language.lower(), from_language)
+            source_label = self.language_code_to_name.get(source_language_code, from_language)
 
         # Determine target language code and display name
-        dest_code = self.lang_name_to_code.get(to_lang.lower(), to_lang)
-        dest_name = self.code_to_name.get(dest_code, to_lang)
+        target_language_code = self.language_name_to_code.get(to_language.lower(), to_language)
+        target_label = self.language_code_to_name.get(target_language_code, to_language)
 
         # Perform translation
-        translated_text = GoogleTranslator(source=src_code, target=dest_code).translate(text)
+        translated_text = GoogleTranslator(source=source_language_code, target=target_language_code).translate(text)
 
         # Build embed
         embed = discord.Embed(title="Translation", color=discord.Color.blurple())
-        embed.add_field(name=f"Translate From ({src_name})", value=text, inline=False)
-        embed.add_field(name=f"Translate To ({dest_name})", value=translated_text, inline=False)
+        embed.add_field(name=f"Translate From ({source_label})", value=text, inline=False)
+        embed.add_field(name=f"Translate To ({target_label})", value=translated_text, inline=False)
 
         # Add TTS buttons
         view = TranslateView(
             original_text=text,
             translated_text=translated_text,
-            src_code=src_code,
-            dest_code=dest_code
+            source_language_code=source_language_code,
+            target_language_code=target_language_code
         )
         await interaction.followup.send(embed=embed, view=view)
         await log_action(self.bot, interaction)
 
+
 async def setup(bot):
+    """Add the Utility cog to the bot."""
     await bot.add_cog(Utility(bot))
