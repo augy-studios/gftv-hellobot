@@ -35,5 +35,5 @@ tools/check_all.sh
   `file::Class.method`. After a change that's meant to alter one, regenerate it with
   `python3 tools/check_protected_names.py` and review the diff.
 - The check reads env keys only from literal `os.getenv("KEY")` calls, so keep them literal.
-- **The ruff baseline** is in `tests/ruff-baseline.txt` (20 today). Lower it as findings are
+- **The ruff baseline** is in `tests/ruff-baseline.txt` (15 today). Lower it as findings are
   fixed; the check fails if the count goes up.
