@@ -28,43 +28,47 @@ cogs_loaded = False
 # ----- Session-ID generation & logging -----
 SESSION_FILE = "sessions.csv"
 
+
 def generate_session_id():
-    chars = string.ascii_lowercase + string.digits
-    return "".join(random.choice(chars) for _ in range(8))
+    """Return a random 8-character session id made of lowercase letters and digits."""
+    allowed_characters = string.ascii_lowercase + string.digits
+    return "".join(random.choice(allowed_characters) for _ in range(8))  # builds the 8 random characters
 
-# Create file + header if it doesn't exist
+
+# Step 1: create the file with its header if it doesn't exist
 if not os.path.exists(SESSION_FILE):
-    with open(SESSION_FILE, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["id", "session_id", "datetime_now"])
+    with open(SESSION_FILE, "w", newline="", encoding="utf-8") as session_file:
+        session_writer = csv.writer(session_file)
+        session_writer.writerow(["id", "session_id", "datetime_now"])
 
-# Read existing IDs & find max row-ID
-existing = set()
-max_id = 0
-with open(SESSION_FILE, newline="", encoding="utf-8") as f:
-    reader = csv.DictReader(f)
-    for row in reader:
-        existing.add(row["session_id"])
+# Step 2: read the existing session ids and find the highest row id
+existing_session_ids = set()
+max_row_id = 0
+with open(SESSION_FILE, newline="", encoding="utf-8") as session_file:
+    session_reader = csv.DictReader(session_file)
+    for row in session_reader:
+        existing_session_ids.add(row["session_id"])
         try:
             row_id = int(row["id"])
-            max_id = max(max_id, row_id)
+            max_row_id = max(max_row_id, row_id)
         except ValueError:
             pass
 
-# Pick a fresh session_id
+# Step 3: pick a session id that hasn't been used before
 session_id = generate_session_id()
-while session_id in existing:
+while session_id in existing_session_ids:
     session_id = generate_session_id()
 
-# Append new row
-new_id = max_id + 1
+# Step 4: append the new row
+new_row_id = max_row_id + 1
 now_iso = datetime.datetime.now().isoformat()
-with open(SESSION_FILE, "a", newline="", encoding="utf-8") as f:
-    writer = csv.writer(f)
-    writer.writerow([new_id, session_id, now_iso])
+with open(SESSION_FILE, "a", newline="", encoding="utf-8") as session_file:
+    session_writer = csv.writer(session_file)
+    session_writer.writerow([new_row_id, session_id, now_iso])
 
 # ----- Activity updater -----
 async def update_activity():
+    """Set the bot's status to "Hello, GFTV!" with this run's session id."""
     # set a custom status with an emoji
     await bot.change_presence(
         activity=discord.CustomActivity(name=f"Hello, GFTV! (Session ID: {session_id})", emoji=":wave:")
@@ -72,6 +76,7 @@ async def update_activity():
 
 # ----- Load extensions, events, etc. -----
 async def load_cogs():
+    """Load every cog module that isn't loaded yet."""
     extensions = [
         "bot.commands.general",
         "bot.commands.info",
@@ -83,25 +88,27 @@ async def load_cogs():
         "bot.commands.profile",
         "bot.commands.admin",
     ]
-    for ext in extensions:
-        if ext not in bot.extensions:
+    for extension_name in extensions:
+        if extension_name not in bot.extensions:
             try:
-                await bot.load_extension(ext)
-                print(f"Loaded extension: {ext}")
+                await bot.load_extension(extension_name)
+                print(f"Loaded extension: {extension_name}")
             except commands.ExtensionAlreadyLoaded:
-                print(f"Extension already loaded, skipping: {ext}")
+                print(f"Extension already loaded, skipping: {extension_name}")
 
 # Function to fetch and display command IDs
 async def fetch_command_ids():
-    commands = await bot.tree.fetch_commands()
+    """Print every registered slash command with its id."""
+    registered_commands = await bot.tree.fetch_commands()
     print("\n=== Registered Slash Commands ===")
-    for cmd in commands:
-        print(f"/{cmd.name} - ID: {cmd.id}")
+    for registered_command in registered_commands:
+        print(f"/{registered_command.name} - ID: {registered_command.id}")
     print("================================\n")
 
 # Event to update known users when the bot is ready
 @bot.event
 async def on_ready():
+    """On connect: load the cogs once, sync commands, refresh known users and the status."""
     global cogs_loaded
     if not cogs_loaded:
         await load_cogs()
@@ -120,6 +127,7 @@ async def on_ready():
 # Update known users and activity when joining a new guild
 @bot.event
 async def on_guild_join(guild):
+    """Refresh known users and the status after joining a guild."""
     print(f"Joined new guild: {guild.name} (ID: {guild.id})")
     await update_known_users(bot)
     await update_activity()
@@ -127,15 +135,17 @@ async def on_guild_join(guild):
 # Update known users and activity when leaving a guild
 @bot.event
 async def on_guild_remove(guild):
+    """Refresh known users and the status after leaving a guild."""
     print(f"Left guild: {guild.name} (ID: {guild.id})")
     await update_known_users(bot)
     await update_activity()
 
 @bot.listen("on_socket_response")
 async def _debug_voice(payload):
-    t = payload.get("t")
-    if t in {"VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"}:
-        print("[VOICE EVENT]", t)
+    """Print a line whenever a voice state or voice server update arrives."""
+    event_type = payload.get("t")
+    if event_type in {"VOICE_STATE_UPDATE", "VOICE_SERVER_UPDATE"}:
+        print("[VOICE EVENT]", event_type)
 
 # ----- Error handling & run bot -----
 setup_error_handling(bot)

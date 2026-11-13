@@ -1,0 +1,1163 @@
+{
+  "discord": {
+    "cog_modules": [
+      "bot.commands.admin",
+      "bot.commands.fun",
+      "bot.commands.games",
+      "bot.commands.general",
+      "bot.commands.generative",
+      "bot.commands.info",
+      "bot.commands.moderation",
+      "bot.commands.profile",
+      "bot.commands.utility"
+    ],
+    "custom_ids": [
+      "discord-bot/bot/commands/info.py::first_page",
+      "discord-bot/bot/commands/info.py::last_page",
+      "discord-bot/bot/commands/info.py::list_channels",
+      "discord-bot/bot/commands/info.py::list_guilds",
+      "discord-bot/bot/commands/info.py::list_users",
+      "discord-bot/bot/commands/info.py::next_page",
+      "discord-bot/bot/commands/info.py::page_number",
+      "discord-bot/bot/commands/info.py::prev_page"
+    ],
+    "data_files": [
+      ".csv",
+      "countries.json",
+      "sessions.csv",
+      "users.txt"
+    ],
+    "env_keys": [
+      "BOT_OWNER_ID",
+      "DISCORD_TOKEN",
+      "LOG_CHANNEL_ID",
+      "LOG_GUILD_ID"
+    ],
+    "hooks": [
+      "discord-bot/bot/commands/admin.py::setup",
+      "discord-bot/bot/commands/fun.py::setup",
+      "discord-bot/bot/commands/games.py::BaseSession.on_interaction",
+      "discord-bot/bot/commands/games.py::BattleButton.callback",
+      "discord-bot/bot/commands/games.py::C4Button.callback",
+      "discord-bot/bot/commands/games.py::ChessMoveButton.callback",
+      "discord-bot/bot/commands/games.py::ChessMoveModal.on_submit",
+      "discord-bot/bot/commands/games.py::ChessSession.on_interaction",
+      "discord-bot/bot/commands/games.py::Connect4Session.on_interaction",
+      "discord-bot/bot/commands/games.py::FlagButton.callback",
+      "discord-bot/bot/commands/games.py::Games.on_interaction",
+      "discord-bot/bot/commands/games.py::HangmanGuessButton.callback",
+      "discord-bot/bot/commands/games.py::HangmanModal.on_submit",
+      "discord-bot/bot/commands/games.py::HangmanSession.on_interaction",
+      "discord-bot/bot/commands/games.py::PlayAgainButton.callback",
+      "discord-bot/bot/commands/games.py::TTTButton.callback",
+      "discord-bot/bot/commands/games.py::TicTacToeSession.on_interaction",
+      "discord-bot/bot/commands/games.py::TriviaButton.callback",
+      "discord-bot/bot/commands/games.py::TriviaSession.on_interaction",
+      "discord-bot/bot/commands/games.py::UnoDrawButton.callback",
+      "discord-bot/bot/commands/games.py::UnoPlayButton.callback",
+      "discord-bot/bot/commands/games.py::UnoSession.on_interaction",
+      "discord-bot/bot/commands/games.py::WordleGuessButton.callback",
+      "discord-bot/bot/commands/games.py::WordleModal.on_submit",
+      "discord-bot/bot/commands/games.py::WordleSession.on_interaction",
+      "discord-bot/bot/commands/games.py::setup",
+      "discord-bot/bot/commands/general.py::setup",
+      "discord-bot/bot/commands/generative.py::setup",
+      "discord-bot/bot/commands/info.py::setup",
+      "discord-bot/bot/commands/miscellaneous.py::setup",
+      "discord-bot/bot/commands/moderation.py::Moderation.cog_app_command_error",
+      "discord-bot/bot/commands/moderation.py::setup",
+      "discord-bot/bot/commands/profile.py::setup",
+      "discord-bot/bot/commands/utility.py::ContinentButton.callback",
+      "discord-bot/bot/commands/utility.py::DoneButton.callback",
+      "discord-bot/bot/commands/utility.py::NextButton.callback",
+      "discord-bot/bot/commands/utility.py::PageSelect.callback",
+      "discord-bot/bot/commands/utility.py::PrevButton.callback",
+      "discord-bot/bot/commands/utility.py::SubmitButton.callback",
+      "discord-bot/bot/commands/utility.py::setup",
+      "discord-bot/core/logger.py::on_command_error",
+      "discord-bot/main.py::_debug_voice",
+      "discord-bot/main.py::listen(on_socket_response)",
+      "discord-bot/main.py::on_guild_join",
+      "discord-bot/main.py::on_guild_remove",
+      "discord-bot/main.py::on_ready"
+    ],
+    "slash_commands": [
+      {
+        "description": "Convert an image into a 3D object",
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "3dify",
+        "option_choices": {
+          "output_type": [
+            {
+              "name": "Image (PNG)",
+              "value": "png"
+            },
+            {
+              "name": "Animated Image (GIF)",
+              "value": "gif"
+            },
+            {
+              "name": "Model (OBJ)",
+              "value": "obj"
+            },
+            {
+              "name": "Model (STL)",
+              "value": "stl"
+            }
+          ]
+        },
+        "option_descriptions": {
+          "image": "The image file to convert",
+          "output_type": "Type of output file",
+          "thickness": "Thickness/extrusion depth in pixels"
+        },
+        "options": [
+          "image",
+          "output_type",
+          "thickness"
+        ]
+      },
+      {
+        "description": "Ask the magic 8-ball any question.",
+        "file": "discord-bot/bot/commands/fun.py",
+        "name": "8ball",
+        "option_descriptions": {
+          "question": "Ask the magic 8-ball any question."
+        },
+        "options": [
+          "question"
+        ]
+      },
+      {
+        "description": "Ban a user.",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "ban",
+        "option_descriptions": {
+          "member": "The user that you want to ban",
+          "reason": "The reason for the ban"
+        },
+        "options": [
+          "member",
+          "reason"
+        ]
+      },
+      {
+        "description": "Battle another player or bot.",
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "battle",
+        "option_descriptions": {
+          "opponent": "Opponent (optional)"
+        },
+        "options": [
+          "opponent"
+        ]
+      },
+      {
+        "description": "Get detailed bot information.",
+        "file": "discord-bot/bot/commands/info.py",
+        "name": "botinfo",
+        "options": []
+      },
+      {
+        "description": "You like kitties, don't you? This command shows you a random cat image.",
+        "file": "discord-bot/bot/commands/fun.py",
+        "name": "cat",
+        "options": []
+      },
+      {
+        "description": "Channel Moderation Commands",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "channel",
+        "option_choices": {
+          "options": [
+            {
+              "name": "lock",
+              "value": "lock"
+            },
+            {
+              "name": "unlock",
+              "value": "unlock"
+            },
+            {
+              "name": "private",
+              "value": "private"
+            },
+            {
+              "name": "public",
+              "value": "public"
+            },
+            {
+              "name": "slowmode",
+              "value": "slowmode"
+            },
+            {
+              "name": "delete",
+              "value": "delete"
+            },
+            {
+              "name": "rename",
+              "value": "rename"
+            },
+            {
+              "name": "topic",
+              "value": "topic"
+            },
+            {
+              "name": "nsfw",
+              "value": "nsfw"
+            },
+            {
+              "name": "position",
+              "value": "position"
+            },
+            {
+              "name": "type",
+              "value": "type"
+            },
+            {
+              "name": "invite_links",
+              "value": "invite_links"
+            }
+          ]
+        },
+        "option_descriptions": {
+          "options": "The channel moderation setting to change",
+          "set": "The value to set (if any)"
+        },
+        "options": [
+          "options",
+          "set"
+        ]
+      },
+      {
+        "description": "Play Chess with another user or bot.",
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "chess",
+        "option_descriptions": {
+          "opponent": "Opponent (optional)"
+        },
+        "options": [
+          "opponent"
+        ]
+      },
+      {
+        "description": "Flip a coin and optionally guess the result.",
+        "file": "discord-bot/bot/commands/fun.py",
+        "name": "coin",
+        "option_choices": {
+          "guess": [
+            {
+              "name": "HEADS",
+              "value": "HEADS"
+            },
+            {
+              "name": "TAILS",
+              "value": "TAILS"
+            }
+          ]
+        },
+        "option_descriptions": {
+          "guess": "Your guess (HEADS or TAILS)"
+        },
+        "options": [
+          "guess"
+        ]
+      },
+      {
+        "description": "Play Connect 4 with another user.",
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "connect4",
+        "option_descriptions": {
+          "opponent": "Opponent (optional)"
+        },
+        "options": [
+          "opponent"
+        ]
+      },
+      {
+        "description": "Mark which countries you've been to, by continent.",
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "countrychecklist",
+        "options": []
+      },
+      {
+        "description": "Create a new channel.",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "create_channel",
+        "option_choices": {
+          "type": [
+            {
+              "name": "text",
+              "value": "text"
+            },
+            {
+              "name": "voice",
+              "value": "voice"
+            },
+            {
+              "name": "announcement",
+              "value": "announcement"
+            },
+            {
+              "name": "forum",
+              "value": "forum"
+            },
+            {
+              "name": "stage",
+              "value": "stage"
+            }
+          ]
+        },
+        "option_descriptions": {
+          "name": "The name of the new channel",
+          "type": "The type of the new channel"
+        },
+        "options": [
+          "type",
+          "name"
+        ]
+      },
+      {
+        "description": "Deafen a user.",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "deafen",
+        "option_descriptions": {
+          "member": "The user that you want to"
+        },
+        "options": [
+          "member"
+        ]
+      },
+      {
+        "description": "Developer-only commands",
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev",
+        "options": [
+          "<group>"
+        ]
+      },
+      {
+        "description": "Safely evaluate a short Python snippet",
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev eval",
+        "option_descriptions": {
+          "code": "Python code to evaluate"
+        },
+        "options": [
+          "code"
+        ]
+      },
+      {
+        "description": "Reload one or all Cogs",
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev reload",
+        "option_descriptions": {
+          "cog_name": "Name of the cog to reload, or 'all' for every extension"
+        },
+        "options": [
+          "cog_name"
+        ]
+      },
+      {
+        "description": "Restart the bot (owner only)",
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev restart",
+        "options": []
+      },
+      {
+        "description": "Display session data from sessions.csv",
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev sessions",
+        "options": []
+      },
+      {
+        "description": "Show process stats (CPU%, memory usage, event loop lag)",
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev stats",
+        "options": []
+      },
+      {
+        "description": "Force a slash-command sync (global or to a specific guild ID)",
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev sync",
+        "option_descriptions": {
+          "guild_id": "Optional guild ID for guild-specific sync"
+        },
+        "options": [
+          "guild_id"
+        ]
+      },
+      {
+        "description": "You like puppies, don't you? This command shows you a random dog image.",
+        "file": "discord-bot/bot/commands/fun.py",
+        "name": "dog",
+        "options": []
+      },
+      {
+        "description": "Generate an image with randomly placed colored dots.",
+        "file": "discord-bot/bot/commands/generative.py",
+        "name": "dots",
+        "option_descriptions": {
+          "bg_color": "Background color as a hex code (default is #ffffff)",
+          "dot_diameter": "Diameter of each dot in pixels",
+          "height": "Height of the image in pixels",
+          "num_dots": "Number of dots to generate (default is 1000)",
+          "overlap": "If True, dots may overlap; if False, they will be placed without overlapping",
+          "width": "Width of the image in pixels"
+        },
+        "options": [
+          "width",
+          "height",
+          "dot_diameter",
+          "num_dots",
+          "bg_color",
+          "overlap"
+        ]
+      },
+      {
+        "description": "Enhance an image file. If no change is needed, I'll let you know.",
+        "file": "discord-bot/bot/commands/generative.py",
+        "name": "enhance",
+        "option_choices": {
+          "mode": [
+            {
+              "name": "Auto",
+              "value": "auto"
+            },
+            {
+              "name": "Background Effect",
+              "value": "background_effect"
+            },
+            {
+              "name": "Erase Reflections",
+              "value": "erase_reflections"
+            },
+            {
+              "name": "Erase Shadows",
+              "value": "erase_shadows"
+            },
+            {
+              "name": "Remaster",
+              "value": "remaster"
+            },
+            {
+              "name": "Remove Lens Flare",
+              "value": "remove_lens_flare"
+            }
+          ]
+        },
+        "option_descriptions": {
+          "image": "The image to enhance",
+          "mode": "Enhancement mode (optional; defaults to Auto)"
+        },
+        "options": [
+          "image",
+          "mode"
+        ]
+      },
+      {
+        "description": "Fixes Twitter, Instagram, and BlueSky links to bypass login walls.",
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "fix",
+        "option_descriptions": {
+          "url": "The social media link to fix"
+        },
+        "options": [
+          "url"
+        ]
+      },
+      {
+        "description": "Match a country to its flag.",
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "flagmatch",
+        "options": []
+      },
+      {
+        "description": "Yip? This command shows you a random fluffy fox image.",
+        "file": "discord-bot/bot/commands/fun.py",
+        "name": "fox",
+        "options": []
+      },
+      {
+        "description": "Play Hangman.",
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "hangman",
+        "option_descriptions": {
+          "length": "Word length (optional)"
+        },
+        "options": [
+          "length"
+        ]
+      },
+      {
+        "description": "Learn more about the bot.",
+        "file": "discord-bot/bot/commands/general.py",
+        "name": "hello",
+        "option_choices": {
+          "language": [
+            {
+              "name": "English",
+              "value": "en"
+            },
+            {
+              "name": "Chinese",
+              "value": "zh"
+            },
+            {
+              "name": "Malay",
+              "value": "ms"
+            },
+            {
+              "name": "Tamil",
+              "value": "ta"
+            },
+            {
+              "name": "Spanish",
+              "value": "es"
+            },
+            {
+              "name": "Indonesian",
+              "value": "id"
+            },
+            {
+              "name": "Norwegian",
+              "value": "no"
+            },
+            {
+              "name": "French",
+              "value": "fr"
+            },
+            {
+              "name": "German",
+              "value": "de"
+            },
+            {
+              "name": "Esperanto",
+              "value": "eo"
+            },
+            {
+              "name": "Traditional Chinese",
+              "value": "zh-tw"
+            },
+            {
+              "name": "Japanese",
+              "value": "ja"
+            },
+            {
+              "name": "Korean",
+              "value": "ko"
+            },
+            {
+              "name": "Portuguese",
+              "value": "pt"
+            },
+            {
+              "name": "Thai",
+              "value": "th"
+            },
+            {
+              "name": "Vietnamese",
+              "value": "vi"
+            },
+            {
+              "name": "Russian",
+              "value": "ru"
+            },
+            {
+              "name": "Tagalog",
+              "value": "tl"
+            }
+          ]
+        },
+        "option_descriptions": {
+          "language": "The language to say hello in"
+        },
+        "options": [
+          "language"
+        ]
+      },
+      {
+        "description": "Display a list of available commands categorized by their category.",
+        "file": "discord-bot/bot/commands/general.py",
+        "name": "help",
+        "option_autocomplete": [
+          "category"
+        ],
+        "option_descriptions": {
+          "category": "Choose a category to see its commands"
+        },
+        "options": [
+          "category"
+        ]
+      },
+      {
+        "description": "Invite Moderation Commands",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "invite",
+        "option_choices": {
+          "options": [
+            {
+              "name": "list",
+              "value": "list"
+            },
+            {
+              "name": "create",
+              "value": "create"
+            },
+            {
+              "name": "delete",
+              "value": "delete"
+            }
+          ]
+        },
+        "option_descriptions": {
+          "options": "The invite moderation setting to change",
+          "set": "The value to set (if any)"
+        },
+        "options": [
+          "options",
+          "set"
+        ]
+      },
+      {
+        "description": "Kick a user.",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "kick",
+        "option_descriptions": {
+          "member": "The user that you want to kick",
+          "reason": "The reason for the kick"
+        },
+        "options": [
+          "member",
+          "reason"
+        ]
+      },
+      {
+        "description": "Solve a math expression.",
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "math",
+        "option_descriptions": {
+          "expression": "The math expression to solve"
+        },
+        "options": [
+          "expression"
+        ]
+      },
+      {
+        "description": "Mute a user.",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "mute",
+        "option_descriptions": {
+          "member": "The user that you want to mute"
+        },
+        "options": [
+          "member"
+        ]
+      },
+      {
+        "description": "Change a user's nickname.",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "nickname",
+        "option_descriptions": {
+          "member": "The user that you want to change the nickname of",
+          "nickname": "The new nickname"
+        },
+        "options": [
+          "member",
+          "nickname"
+        ]
+      },
+      {
+        "description": "Check the bot's latency.",
+        "file": "discord-bot/bot/commands/general.py",
+        "name": "ping",
+        "options": []
+      },
+      {
+        "description": "Predict a value based on a dataset",
+        "file": "discord-bot/bot/commands/generative.py",
+        "name": "predict",
+        "option_descriptions": {
+          "csv_file": "Upload a CSV file with two columns (x, y). Optional if dataset string is provided.",
+          "dataset": "A dataset as a string (e.g. '1,2; 2,4; 3,8; 4,16; 5,32'). Optional if CSV file is provided.",
+          "target": "The x value you want to predict for (e.g., 69)"
+        },
+        "options": [
+          "target",
+          "dataset",
+          "csv_file"
+        ]
+      },
+      {
+        "description": "Generate a custom ID badge profile",
+        "file": "discord-bot/bot/commands/profile.py",
+        "name": "profile",
+        "option_descriptions": {
+          "font_url": "Optional direct link to a .ttf font file from Google Fonts (default is Microsoft Yahei)",
+          "user": "User to generate the profile for (defaults to you)"
+        },
+        "options": [
+          "user",
+          "font_url"
+        ]
+      },
+      {
+        "description": "Purge messages in a channel.",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "purge",
+        "option_descriptions": {
+          "amount": "The amount of messages to purge",
+          "but_bot": "Ignore messages sent by the bot (default: True)",
+          "user": "The user whose messages to purge (optional)"
+        },
+        "options": [
+          "amount",
+          "user",
+          "but_bot"
+        ]
+      },
+      {
+        "description": "Generate a random number between a given range.",
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "randnum",
+        "option_descriptions": {
+          "max_num": "The maximum number",
+          "min_num": "The minimum number"
+        },
+        "options": [
+          "min_num",
+          "max_num"
+        ]
+      },
+      {
+        "description": "Roll dice in the format XdY (e.g., /roll 4d8 or /roll d20).",
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "roll",
+        "option_descriptions": {
+          "dice": "The dice format (e.g., 4d8 or d20)"
+        },
+        "options": [
+          "dice"
+        ]
+      },
+      {
+        "description": "Make the bot repeat what you say.",
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "say",
+        "option_descriptions": {
+          "channel": "Optional: the channel to send the message in (defaults to current channel)",
+          "message": "The message to repeat, use \\n for a new line"
+        },
+        "options": [
+          "message",
+          "channel"
+        ]
+      },
+      {
+        "description": "Scrape and ZIP a site, then send or upload via uploadr-cli.",
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "scrape",
+        "options": [
+          "url"
+        ]
+      },
+      {
+        "description": "Get server information.",
+        "file": "discord-bot/bot/commands/info.py",
+        "name": "serverinfo",
+        "options": []
+      },
+      {
+        "description": "Thread Moderation Commands",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "thread",
+        "option_choices": {
+          "options": [
+            {
+              "name": "create",
+              "value": "create"
+            },
+            {
+              "name": "delete",
+              "value": "delete"
+            },
+            {
+              "name": "archive",
+              "value": "archive"
+            },
+            {
+              "name": "auto_archive",
+              "value": "auto_archive"
+            },
+            {
+              "name": "rename",
+              "value": "rename"
+            },
+            {
+              "name": "lock",
+              "value": "lock"
+            },
+            {
+              "name": "unlock",
+              "value": "unlock"
+            },
+            {
+              "name": "slowmode",
+              "value": "slowmode"
+            },
+            {
+              "name": "type",
+              "value": "type"
+            }
+          ]
+        },
+        "option_descriptions": {
+          "options": "The thread moderation setting to change",
+          "set": "The value to set (if any)"
+        },
+        "options": [
+          "options",
+          "set"
+        ]
+      },
+      {
+        "description": "Play Tic-Tac-Toe with another user.",
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "tictactoe",
+        "option_descriptions": {
+          "opponent": "Opponent (optional)"
+        },
+        "options": [
+          "opponent"
+        ]
+      },
+      {
+        "description": "Timeout a user.",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "timeout",
+        "option_descriptions": {
+          "duration": "The duration of the timeout in minutes",
+          "member": "The user that you want to timeout"
+        },
+        "options": [
+          "member",
+          "duration"
+        ]
+      },
+      {
+        "description": "Translate text between languages.",
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "translate",
+        "option_autocomplete": [
+          "from_lang",
+          "to_lang"
+        ],
+        "option_descriptions": {
+          "from_lang": "Source language (default: auto-detect)",
+          "text": "Text to translate",
+          "to_lang": "Target language"
+        },
+        "options": [
+          "text",
+          "to_lang",
+          "from_lang"
+        ]
+      },
+      {
+        "description": "Answer a trivia question.",
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "trivia",
+        "option_descriptions": {
+          "category": "Open Trivia DB category ID (optional)"
+        },
+        "options": [
+          "category"
+        ]
+      },
+      {
+        "description": "Unban a user.",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "unban",
+        "option_descriptions": {
+          "reason": "The reason for the unban",
+          "user": "The user that you want to unban"
+        },
+        "options": [
+          "user",
+          "reason"
+        ]
+      },
+      {
+        "description": "Undeafen a user.",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "undeafen",
+        "option_descriptions": {
+          "member": "The user that you want to undeafen"
+        },
+        "options": [
+          "member"
+        ]
+      },
+      {
+        "description": "Unmute a user.",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "unmute",
+        "option_descriptions": {
+          "member": "The user that you want to unmute"
+        },
+        "options": [
+          "member"
+        ]
+      },
+      {
+        "description": "Play simplified UNO with color/number cards.",
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "uno",
+        "options": []
+      },
+      {
+        "description": "Untimeout a user.",
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "untimeout",
+        "option_descriptions": {
+          "member": "The user that you want to untimeout"
+        },
+        "options": [
+          "member"
+        ]
+      },
+      {
+        "description": "Get user information.",
+        "file": "discord-bot/bot/commands/info.py",
+        "name": "userinfo",
+        "option_descriptions": {
+          "member": "The user to get information about"
+        },
+        "options": [
+          "member"
+        ]
+      },
+      {
+        "description": "Generate a waves image",
+        "file": "discord-bot/bot/commands/generative.py",
+        "name": "waves",
+        "option_choices": {
+          "color": [
+            {
+              "name": "Red",
+              "value": "red"
+            },
+            {
+              "name": "Green",
+              "value": "green"
+            },
+            {
+              "name": "Blue",
+              "value": "blue"
+            },
+            {
+              "name": "Yellow",
+              "value": "yellow"
+            },
+            {
+              "name": "Purple",
+              "value": "purple"
+            },
+            {
+              "name": "Orange",
+              "value": "orange"
+            },
+            {
+              "name": "Pink",
+              "value": "pink"
+            },
+            {
+              "name": "Cyan",
+              "value": "cyan"
+            },
+            {
+              "name": "Magenta",
+              "value": "magenta"
+            },
+            {
+              "name": "Augy Green",
+              "value": "augy"
+            }
+          ]
+        },
+        "option_descriptions": {
+          "color": "Base color (e.g., blue, red, green)",
+          "frequency": "Number of sine wave cycles across the image width",
+          "height": "Image height in pixels",
+          "overlap": "If True, each subsequent wave is drawn with a smaller vertical offset so it overlaps the previous one",
+          "vertical_distance": "Vertical distance between the start of each wave in pixels",
+          "wave_amplitude": "Amplitude of the wave in pixels",
+          "width": "Image width in pixels"
+        },
+        "options": [
+          "width",
+          "height",
+          "wave_amplitude",
+          "frequency",
+          "vertical_distance",
+          "color",
+          "overlap"
+        ]
+      },
+      {
+        "description": "Play Wordle.",
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "wordle",
+        "option_descriptions": {
+          "length": "Word length"
+        },
+        "options": [
+          "length"
+        ]
+      },
+      {
+        "description": "Get the thumbnail image of a YouTube video.",
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "ytimg",
+        "option_descriptions": {
+          "link_or_id": "The YouTube video link or ID"
+        },
+        "options": [
+          "link_or_id"
+        ]
+      }
+    ]
+  },
+  "telegram": {
+    "callback_data": [
+      "guess_heads",
+      "guess_tails",
+      "list_channels",
+      "list_groups",
+      "list_users",
+      "startswith:guess_"
+    ],
+    "commands": [
+      {
+        "command": "8ball",
+        "handler": "command_8ball"
+      },
+      {
+        "command": "ban",
+        "handler": "command_ban"
+      },
+      {
+        "command": "botinfo",
+        "handler": "command_botinfo"
+      },
+      {
+        "command": "broadcast",
+        "handler": "command_broadcast"
+      },
+      {
+        "command": "cat",
+        "handler": "command_cat"
+      },
+      {
+        "command": "coin",
+        "handler": "command_coin"
+      },
+      {
+        "command": "dm",
+        "handler": "command_dm"
+      },
+      {
+        "command": "dog",
+        "handler": "command_dog"
+      },
+      {
+        "command": "fox",
+        "handler": "command_fox"
+      },
+      {
+        "command": "help",
+        "handler": "command_help"
+      },
+      {
+        "command": "ping",
+        "handler": "command_ping"
+      },
+      {
+        "command": "randnum",
+        "handler": "command_randnum"
+      },
+      {
+        "command": "rnum",
+        "handler": "command_randnum"
+      },
+      {
+        "command": "roll",
+        "handler": "command_roll"
+      },
+      {
+        "command": "start",
+        "handler": "command_start"
+      },
+      {
+        "command": "unban",
+        "handler": "command_unban"
+      }
+    ],
+    "data_files": [
+      "channels.txt",
+      "groups.txt",
+      "users.txt"
+    ],
+    "env_keys": [
+      "API_HASH",
+      "API_ID",
+      "BOT_OWNER_ID",
+      "BOT_TOKEN",
+      "LOG_CHANNEL_ID"
+    ],
+    "event_handlers": [
+      "telegram-bot/bot/main.py::callback_handler(events.CallbackQuery)",
+      "telegram-bot/bot/main.py::message_handler(events.NewMessage)"
+    ],
+    "handler_functions": [
+      "telegram-bot/bot/cogs/botowner.py::command_broadcast",
+      "telegram-bot/bot/cogs/botowner.py::command_dm",
+      "telegram-bot/bot/cogs/fun.py::command_8ball",
+      "telegram-bot/bot/cogs/fun.py::command_cat",
+      "telegram-bot/bot/cogs/fun.py::command_coin",
+      "telegram-bot/bot/cogs/fun.py::command_dog",
+      "telegram-bot/bot/cogs/fun.py::command_fox",
+      "telegram-bot/bot/cogs/fun.py::command_randnum",
+      "telegram-bot/bot/cogs/fun.py::command_roll",
+      "telegram-bot/bot/cogs/fun.py::handle_coin_guess",
+      "telegram-bot/bot/cogs/general.py::command_help",
+      "telegram-bot/bot/cogs/general.py::command_ping",
+      "telegram-bot/bot/cogs/general.py::command_start",
+      "telegram-bot/bot/cogs/info.py::command_botinfo",
+      "telegram-bot/bot/cogs/info.py::handle_botinfo_callback",
+      "telegram-bot/bot/cogs/moderation.py::command_ban",
+      "telegram-bot/bot/cogs/moderation.py::command_unban"
+    ],
+    "menu_commands": [
+      "8ball",
+      "ban",
+      "botinfo",
+      "broadcast",
+      "cat",
+      "coin",
+      "dm",
+      "dog",
+      "fox",
+      "help",
+      "ping",
+      "randnum",
+      "rnum",
+      "roll",
+      "start",
+      "unban"
+    ],
+    "session_names": [
+      "HelloBotSession"
+    ]
+  }
+}
