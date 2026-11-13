@@ -4,8 +4,44 @@ from discord.ext import commands
 from discord import app_commands
 from core.logger import log_action
 
+FOOTER_TEXT = "Made with ❤️ by GFTV Intl © 2025 All Rights Sniffed • https://globalfurry.tv/"
+HELP_PAGE_LIMIT = 1024  # Embed description limit per page
+
+
+def build_help_pages(cogs_to_show):
+    """Split (cog name, command lines) pairs into pages of at most HELP_PAGE_LIMIT characters."""
+    pages_content: list[str] = []
+    current_content = ""
+
+    for cog_name, lines in cogs_to_show:
+        header = f"**{cog_name} Commands**\n"
+        # Start new page if header itself doesn't fit
+        if current_content and len(current_content) + len(header) > HELP_PAGE_LIMIT:
+            pages_content.append(current_content)
+            current_content = ""
+
+        # Ensure header present
+        if not current_content.startswith(header):
+            current_content += header
+
+        # Add each command line, splitting pages as needed
+        for line in lines:
+            if len(current_content) + len(line) > HELP_PAGE_LIMIT:
+                pages_content.append(current_content)
+                current_content = header + line
+            else:
+                current_content += line
+
+    if current_content:
+        pages_content.append(current_content)
+    return pages_content
+
+
 class HelpView(discord.ui.View):
+    """Paginated help embeds with Previous and Next buttons."""
+
     def __init__(self, pages: list[discord.Embed]):
+        """Create the navigation buttons for the given pages."""
         super().__init__(timeout=120)
         self.pages = pages
         self.current = 0
@@ -27,33 +63,40 @@ class HelpView(discord.ui.View):
         self.update_buttons()
 
     async def prev_page(self, interaction: discord.Interaction):
+        """Show the previous page."""
         self.current = max(self.current - 1, 0)
         self.update_buttons()
         await interaction.response.edit_message(embed=self.pages[self.current], view=self)
 
     async def next_page(self, interaction: discord.Interaction):
+        """Show the next page."""
         self.current = min(self.current + 1, len(self.pages) - 1)
         self.update_buttons()
         await interaction.response.edit_message(embed=self.pages[self.current], view=self)
 
     def update_buttons(self):
+        """Disable the buttons at either end and refresh the page label."""
         self.prev_button.disabled = (self.current == 0)
         self.next_button.disabled = (self.current == len(self.pages) - 1)
         self.page_button.label = f"{self.current + 1}/{len(self.pages)}"
 
 class General(commands.Cog):
+    """General commands: ping, hello and help."""
+
     def __init__(self, bot):
+        """Keep a reference to the bot and an empty command ID table."""
         self.bot = bot
         self.command_ids = {}  # Store command IDs dynamically
 
     async def fetch_command_ids(self):
         """Fetch and store command IDs after syncing."""
-        commands = await self.bot.tree.fetch_commands()
-        for cmd in commands:
-            self.command_ids[cmd.name] = cmd.id
+        fetched_commands = await self.bot.tree.fetch_commands()
+        for command in fetched_commands:
+            self.command_ids[command.name] = command.id
 
     @app_commands.command(name="ping", description="Check the bot's latency.")
     async def ping(self, interaction: discord.Interaction):
+        """Reply with the bot's latency in milliseconds."""
         latency = round(self.bot.latency * 1000)
         await interaction.response.send_message(f"Pong! 🏓 Latency: {latency}ms")
         await log_action(self.bot, interaction)
@@ -83,6 +126,8 @@ class General(commands.Cog):
         ]
     )
     async def hello(self, interaction: discord.Interaction, language: str = "en"):
+        """Introduce the bot in the chosen language, with useful links."""
+        # Greeting text for each language code
         hello_messages = {
             "en": "Hi, I'm HelloBot! 👋\nI'm created by GFTV, for GFTV.\nI was born yesterday but I do a kickass job watching over GFTV communities! 😛",
             "zh": "嗨，我是 HelloBot！👋\n我是由 GFTV 创建，为 GFTV 而生。\n我昨天才诞生，但我已经在 GFTV 社区里干得超棒啦！😛",
@@ -104,6 +149,7 @@ class General(commands.Cog):
             "tl": "Kumusta, ako si HelloBot! 👋\nAko ay nilikha ng GFTV, para sa GFTV.\nAko ay ipinanganak kahapon ngunit gumagawa ako ng kahanga-hangang trabaho sa pagbabantay sa mga komunidad ng GFTV! 😛"
         }
 
+        # Build the embed with the greeting and links
         embed = discord.Embed(title="Hello!", color=discord.Color.random())
         embed.description = hello_messages.get(language, hello_messages["en"])
         link_to_add_bot = f"https://discord.com/oauth2/authorize?client_id={self.bot.user.id}"
@@ -118,31 +164,25 @@ class General(commands.Cog):
         embed.add_field(name="Support the Bot", value=f"[Buy me a coffee!]({link_to_coffee})")
         link_to_monthly_support = "https://donate.stripe.com/6oEbKUdwn9FTgCI7st"
         embed.add_field(name="Monthly Support", value=f"[Support us monthly!]({link_to_monthly_support})")
-        embed.set_footer(text="Made with ❤️ by GFTV Intl © 2025 All Rights Sniffed • https://globalfurry.tv/")
+        embed.set_footer(text=FOOTER_TEXT)
         await interaction.response.send_message(embed=embed)
         await log_action(self.bot, interaction)
 
     @app_commands.command(name="help", description="Display a list of available commands categorized by their category.")
     @app_commands.describe(category="Choose a category to see its commands")
     async def help_command(self, interaction: discord.Interaction, category: str | None = None):
+        """Show the available commands, grouped by cog, one page at a time."""
+        # Step 1: build the base embed that every page copies
         base_embed = discord.Embed(
             title="Help - Available Commands",
             color=discord.Color.random()
         )
-        base_embed.set_footer(text="Made with ❤️ by GFTV Intl © 2025 All Rights Sniffed • https://globalfurry.tv/")
+        base_embed.set_footer(text=FOOTER_TEXT)
 
-        # Collect commands grouped by Cog
-        cog_commands: dict[str, list[str]] = {}
-        for cog_name, cog in self.bot.cogs.items():
-            lines: list[str] = []
-            for cmd in cog.get_app_commands():
-                cmd_id = self.command_ids.get(cmd.name)
-                mention = f"</{cmd.name}:{cmd_id}>" if cmd_id else f"/{cmd.name}"
-                lines.append(f"**{mention}** - {cmd.description}\n")
-            if lines:
-                cog_commands[cog_name] = lines
+        # Step 2: collect commands grouped by cog
+        cog_commands = self.collect_cog_commands()
 
-        # Handle invalid category
+        # Step 3: handle an invalid category
         if category and category not in cog_commands:
             await interaction.response.send_message(
                 f"❌ No commands found for category: {category}",
@@ -150,53 +190,53 @@ class General(commands.Cog):
             )
             return
 
-        # Build pages with a 1024-character limit per page
-        pages_content: list[str] = []
-        current_content = ""
-        items = ((category, cog_commands[category]),) if category else cog_commands.items()
+        # Step 4: split the commands into pages of text
+        if category:
+            cogs_to_show = ((category, cog_commands[category]),)
+        else:
+            cogs_to_show = cog_commands.items()
+        pages_content = build_help_pages(cogs_to_show)
 
-        for cog_name, lines in items:
-            header = f"**{cog_name} Commands**\n"
-            # Start new page if header itself doesn't fit
-            if current_content and len(current_content) + len(header) > 1024:
-                pages_content.append(current_content)
-                current_content = ""
-
-            # Ensure header present
-            if not current_content.startswith(header):
-                current_content += header
-
-            # Add each command line, splitting pages as needed
-            for line in lines:
-                if len(current_content) + len(line) > 1024:
-                    pages_content.append(current_content)
-                    current_content = header + line
-                else:
-                    current_content += line
-
-        if current_content:
-            pages_content.append(current_content)
-
-        # Convert to embeds
+        # Step 5: convert each page of text to an embed
         pages: list[discord.Embed] = []
         for content in pages_content:
             embed = base_embed.copy()
             embed.description = content
             pages.append(embed)
 
-        # Send paginated view
+        # Step 6: send the paginated view
         view = HelpView(pages)
         await interaction.response.send_message(embed=pages[0], view=view)
 
+    def collect_cog_commands(self) -> dict[str, list[str]]:
+        """Return each cog's name mapped to one help line per slash command."""
+        cog_commands: dict[str, list[str]] = {}
+        for cog_name, cog in self.bot.cogs.items():
+            lines: list[str] = []
+            for command in cog.get_app_commands():
+                command_id = self.command_ids.get(command.name)
+                # Use a clickable mention when the command ID is known
+                if command_id:
+                    mention = f"</{command.name}:{command_id}>"
+                else:
+                    mention = f"/{command.name}"
+                lines.append(f"**{mention}** - {command.description}\n")
+            if lines:
+                cog_commands[cog_name] = lines
+        return cog_commands
+
     @help_command.autocomplete("category")
     async def help_autocomplete(self, interaction: discord.Interaction, current: str):
+        """Suggest cog names that contain what the user has typed."""
+        # Build one choice per cog whose name matches, ignoring case
         return [
-            app_commands.Choice(name=c, value=c)
-            for c in self.bot.cogs.keys()
-            if current.lower() in c.lower()
+            app_commands.Choice(name=cog_name, value=cog_name)
+            for cog_name in self.bot.cogs.keys()
+            if current.lower() in cog_name.lower()
         ]
 
 async def setup(bot):
+    """Load the General cog after fetching command IDs."""
     cog = General(bot)
     await cog.fetch_command_ids()  # Fetch IDs before adding the cog
     await bot.add_cog(cog)
