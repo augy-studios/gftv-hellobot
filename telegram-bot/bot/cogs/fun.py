@@ -54,7 +54,7 @@ async def command_coin(event, client):
     Flips a coin with options for the user to select their guess using inline buttons.
     """
 
-    # Display the buttons for the user to select a guess
+    # Step 1: build the buttons for the user to select a guess
     buttons = [
         [Button.inline("HEADS", b"guess_heads"), Button.inline("TAILS", b"guess_tails")]
     ]
@@ -84,24 +84,24 @@ async def command_randnum(event, client):
     Returns a random number within the user-specified range.
     """
 
-    args = event.raw_text.split()
-    if len(args) != 3:
+    command_arguments = event.raw_text.split()
+    if len(command_arguments) != 3:
         bot_reply = "Invalid syntax. Use /randnum <min> <max>."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
         return
 
     try:
-        min_num = int(args[1])
-        max_num = int(args[2])
-        if min_num > max_num:
+        minimum_number = int(command_arguments[1])
+        maximum_number = int(command_arguments[2])
+        if minimum_number > maximum_number:
             bot_reply = "The minimum value cannot be greater than the maximum value."
             await event.reply(bot_reply)
             await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
             return
 
-        random_number = random.randint(min_num, max_num)
-        bot_reply = f"🎲 Your random number between {min_num} and {max_num} is: **{random_number}**"
+        random_number = random.randint(minimum_number, maximum_number)
+        bot_reply = f"🎲 Your random number between {minimum_number} and {maximum_number} is: **{random_number}**"
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
 
@@ -149,12 +149,12 @@ async def command_roll(event, client):
             await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
             return
 
-        # Roll the dice and calculate the results
+        # Roll the dice and calculate the results (builds a list with one random roll per die)
         results = [random.randint(1, num_sides) for _ in range(num_dice)]
         total = sum(results)
 
-        # Build the reply message
-        reply = "\n".join([f"Dice {i + 1}: {result}" for i, result in enumerate(results)])
+        # Build the reply message, one "Dice N: value" line per die
+        reply = "\n".join([f"Dice {die_number + 1}: {result}" for die_number, result in enumerate(results)])
         reply += f"\n**Total:** {total}"
 
         await event.reply(reply)
@@ -170,13 +170,15 @@ async def command_cat(event, client):
     /cat
     You like kitties, don't you? This command shows you a random cat image.
     """
+
+    # Ask the picture API for one random image and build the reply from its URL.
     try:
         response = requests.get("https://api.thecatapi.com/v1/images/search")
-        data = response.json()
-        image_url = data[0]['url']
+        image_data = response.json()
+        image_url = image_data[0]['url']
         bot_reply = f"🐱 Here's a random cat:\n{image_url}"
-    except Exception as e:
-        bot_reply = f"Failed to fetch a cat image. Error: {e}"
+    except Exception as error:
+        bot_reply = f"Failed to fetch a cat image. Error: {error}"
     
     await event.reply(bot_reply)
     await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
@@ -186,13 +188,15 @@ async def command_dog(event, client):
     /dog
     You like puppies, don't you? This command shows you a random dog image.
     """
+
+    # Ask the picture API for one random image and build the reply from its URL.
     try:
         response = requests.get("https://api.thedogapi.com/v1/images/search")
-        data = response.json()
-        image_url = data[0]['url']
+        image_data = response.json()
+        image_url = image_data[0]['url']
         bot_reply = f"🐶 Here's a random dog:\n{image_url}"
-    except Exception as e:
-        bot_reply = f"Failed to fetch a dog image. Error: {e}"
+    except Exception as error:
+        bot_reply = f"Failed to fetch a dog image. Error: {error}"
     
     await event.reply(bot_reply)
     await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
@@ -202,13 +206,15 @@ async def command_fox(event, client):
     /fox
     Yip? This command shows you a random fluffy fox image.
     """
+
+    # Ask the picture API for one random image and build the reply from its URL.
     try:
         response = requests.get("https://randomfox.ca/floof/")
-        data = response.json()
-        image_url = data['image']
+        image_data = response.json()
+        image_url = image_data['image']
         bot_reply = f"🦊 Here’s a random fox:\n{image_url}"
-    except Exception as e:
-        bot_reply = f"Failed to fetch a fox image. Error: {e}"
+    except Exception as error:
+        bot_reply = f"Failed to fetch a fox image. Error: {error}"
     
     await event.reply(bot_reply)
     await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)

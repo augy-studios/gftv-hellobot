@@ -19,6 +19,8 @@ python3 -m venv .venv
 .venv/bin/pip install ruff
 iconv -f UTF-16 -t UTF-8 discord-bot/requirements.txt > /tmp/discord-req.txt
 .venv/bin/pip install -r /tmp/discord-req.txt
+iconv -f UTF-16 -t UTF-8 telegram-bot/requirements.txt > /tmp/telegram-req.txt   # the import check loads the Telegram cogs too
+.venv/bin/pip install -r /tmp/telegram-req.txt
 tools/check_all.sh
 ```
 
