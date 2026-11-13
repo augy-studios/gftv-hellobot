@@ -1,0 +1,7 @@
+# Lint for help desk #19: undefined names, unused imports/variables (F) and syntax errors (E9).
+# The existing findings are the baseline; later jobs must not add to them.
+target-version = "py313"
+extend-exclude = [".venv", ".claude"]
+
+[lint]
+select = ["F", "E9"]
