@@ -1,0 +1,600 @@
+{
+  "discord": {
+    "cog_modules": [
+      "bot.commands.admin",
+      "bot.commands.fun",
+      "bot.commands.games",
+      "bot.commands.general",
+      "bot.commands.generative",
+      "bot.commands.info",
+      "bot.commands.moderation",
+      "bot.commands.profile",
+      "bot.commands.utility"
+    ],
+    "custom_ids": [
+      "discord-bot/bot/commands/info.py::first_page",
+      "discord-bot/bot/commands/info.py::last_page",
+      "discord-bot/bot/commands/info.py::list_channels",
+      "discord-bot/bot/commands/info.py::list_guilds",
+      "discord-bot/bot/commands/info.py::list_users",
+      "discord-bot/bot/commands/info.py::next_page",
+      "discord-bot/bot/commands/info.py::page_number",
+      "discord-bot/bot/commands/info.py::prev_page"
+    ],
+    "data_files": [
+      ".csv",
+      "countries.json",
+      "sessions.csv",
+      "users.txt"
+    ],
+    "env_keys": [
+      "BOT_OWNER_ID",
+      "DISCORD_TOKEN",
+      "LOG_CHANNEL_ID",
+      "LOG_GUILD_ID"
+    ],
+    "hooks": [
+      "discord-bot/bot/commands/admin.py::setup",
+      "discord-bot/bot/commands/fun.py::setup",
+      "discord-bot/bot/commands/games.py::callback",
+      "discord-bot/bot/commands/games.py::on_interaction",
+      "discord-bot/bot/commands/games.py::on_submit",
+      "discord-bot/bot/commands/games.py::setup",
+      "discord-bot/bot/commands/general.py::setup",
+      "discord-bot/bot/commands/generative.py::setup",
+      "discord-bot/bot/commands/info.py::setup",
+      "discord-bot/bot/commands/miscellaneous.py::setup",
+      "discord-bot/bot/commands/moderation.py::setup",
+      "discord-bot/bot/commands/profile.py::setup",
+      "discord-bot/bot/commands/utility.py::callback",
+      "discord-bot/bot/commands/utility.py::setup",
+      "discord-bot/core/logger.py::on_command_error",
+      "discord-bot/main.py::_debug_voice",
+      "discord-bot/main.py::listen(on_socket_response)",
+      "discord-bot/main.py::on_guild_join",
+      "discord-bot/main.py::on_guild_remove",
+      "discord-bot/main.py::on_ready"
+    ],
+    "slash_commands": [
+      {
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "3dify",
+        "options": [
+          "image",
+          "output_type",
+          "thickness"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/fun.py",
+        "name": "8ball",
+        "options": [
+          "question"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "ban",
+        "options": [
+          "member",
+          "reason"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "battle",
+        "options": [
+          "opponent"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/info.py",
+        "name": "botinfo",
+        "options": []
+      },
+      {
+        "file": "discord-bot/bot/commands/fun.py",
+        "name": "cat",
+        "options": []
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "channel",
+        "options": [
+          "options",
+          "set"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "chess",
+        "options": [
+          "opponent"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/fun.py",
+        "name": "coin",
+        "options": [
+          "guess"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "connect4",
+        "options": [
+          "opponent"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "countrychecklist",
+        "options": []
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "create_channel",
+        "options": [
+          "type",
+          "name"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "deafen",
+        "options": [
+          "member"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev",
+        "options": [
+          "<group>"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev eval",
+        "options": [
+          "code"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev reload",
+        "options": [
+          "cog_name"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev restart",
+        "options": []
+      },
+      {
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev sessions",
+        "options": []
+      },
+      {
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev stats",
+        "options": []
+      },
+      {
+        "file": "discord-bot/bot/commands/admin.py",
+        "name": "dev sync",
+        "options": [
+          "guild_id"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/fun.py",
+        "name": "dog",
+        "options": []
+      },
+      {
+        "file": "discord-bot/bot/commands/generative.py",
+        "name": "dots",
+        "options": [
+          "width",
+          "height",
+          "dot_diameter",
+          "num_dots",
+          "bg_color",
+          "overlap"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/generative.py",
+        "name": "enhance",
+        "options": [
+          "image",
+          "mode"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "fix",
+        "options": [
+          "url"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "flagmatch",
+        "options": []
+      },
+      {
+        "file": "discord-bot/bot/commands/fun.py",
+        "name": "fox",
+        "options": []
+      },
+      {
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "hangman",
+        "options": [
+          "length"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/general.py",
+        "name": "hello",
+        "options": [
+          "language"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/general.py",
+        "name": "help",
+        "options": [
+          "category"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "invite",
+        "options": [
+          "options",
+          "set"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "kick",
+        "options": [
+          "member",
+          "reason"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "math",
+        "options": [
+          "expression"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "mute",
+        "options": [
+          "member"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "nickname",
+        "options": [
+          "member",
+          "nickname"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/general.py",
+        "name": "ping",
+        "options": []
+      },
+      {
+        "file": "discord-bot/bot/commands/generative.py",
+        "name": "predict",
+        "options": [
+          "target",
+          "dataset",
+          "csv_file"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/profile.py",
+        "name": "profile",
+        "options": [
+          "user",
+          "font_url"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "purge",
+        "options": [
+          "amount",
+          "user",
+          "but_bot"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "randnum",
+        "options": [
+          "min_num",
+          "max_num"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "roll",
+        "options": [
+          "dice"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "say",
+        "options": [
+          "message",
+          "channel"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "scrape",
+        "options": [
+          "url"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/info.py",
+        "name": "serverinfo",
+        "options": []
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "thread",
+        "options": [
+          "options",
+          "set"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "tictactoe",
+        "options": [
+          "opponent"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "timeout",
+        "options": [
+          "member",
+          "duration"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "translate",
+        "options": [
+          "text",
+          "to_lang",
+          "from_lang"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "trivia",
+        "options": [
+          "category"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "unban",
+        "options": [
+          "user",
+          "reason"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "undeafen",
+        "options": [
+          "member"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "unmute",
+        "options": [
+          "member"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "uno",
+        "options": []
+      },
+      {
+        "file": "discord-bot/bot/commands/moderation.py",
+        "name": "untimeout",
+        "options": [
+          "member"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/info.py",
+        "name": "userinfo",
+        "options": [
+          "member"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/generative.py",
+        "name": "waves",
+        "options": [
+          "width",
+          "height",
+          "wave_amplitude",
+          "frequency",
+          "vertical_distance",
+          "color",
+          "overlap"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/games.py",
+        "name": "wordle",
+        "options": [
+          "length"
+        ]
+      },
+      {
+        "file": "discord-bot/bot/commands/utility.py",
+        "name": "ytimg",
+        "options": [
+          "link_or_id"
+        ]
+      }
+    ]
+  },
+  "telegram": {
+    "callback_data": [
+      "guess_heads",
+      "guess_tails",
+      "list_channels",
+      "list_groups",
+      "list_users",
+      "startswith:guess_"
+    ],
+    "commands": [
+      {
+        "command": "8ball",
+        "handler": "command_8ball"
+      },
+      {
+        "command": "ban",
+        "handler": "command_ban"
+      },
+      {
+        "command": "botinfo",
+        "handler": "command_botinfo"
+      },
+      {
+        "command": "broadcast",
+        "handler": "command_broadcast"
+      },
+      {
+        "command": "cat",
+        "handler": "command_cat"
+      },
+      {
+        "command": "coin",
+        "handler": "command_coin"
+      },
+      {
+        "command": "dm",
+        "handler": "command_dm"
+      },
+      {
+        "command": "dog",
+        "handler": "command_dog"
+      },
+      {
+        "command": "fox",
+        "handler": "command_fox"
+      },
+      {
+        "command": "help",
+        "handler": "command_help"
+      },
+      {
+        "command": "ping",
+        "handler": "command_ping"
+      },
+      {
+        "command": "randnum",
+        "handler": "command_randnum"
+      },
+      {
+        "command": "rnum",
+        "handler": "command_randnum"
+      },
+      {
+        "command": "roll",
+        "handler": "command_roll"
+      },
+      {
+        "command": "start",
+        "handler": "command_start"
+      },
+      {
+        "command": "unban",
+        "handler": "command_unban"
+      }
+    ],
+    "data_files": [
+      "channels.txt",
+      "groups.txt",
+      "users.txt"
+    ],
+    "env_keys": [
+      "API_HASH",
+      "API_ID",
+      "BOT_OWNER_ID",
+      "BOT_TOKEN",
+      "LOG_CHANNEL_ID"
+    ],
+    "event_handlers": [
+      "telegram-bot/bot/main.py::callback_handler(events.CallbackQuery)",
+      "telegram-bot/bot/main.py::message_handler(events.NewMessage)"
+    ],
+    "handler_functions": [
+      "telegram-bot/bot/cogs/botowner.py::command_broadcast",
+      "telegram-bot/bot/cogs/botowner.py::command_dm",
+      "telegram-bot/bot/cogs/fun.py::command_8ball",
+      "telegram-bot/bot/cogs/fun.py::command_cat",
+      "telegram-bot/bot/cogs/fun.py::command_coin",
+      "telegram-bot/bot/cogs/fun.py::command_dog",
+      "telegram-bot/bot/cogs/fun.py::command_fox",
+      "telegram-bot/bot/cogs/fun.py::command_randnum",
+      "telegram-bot/bot/cogs/fun.py::command_roll",
+      "telegram-bot/bot/cogs/fun.py::handle_coin_guess",
+      "telegram-bot/bot/cogs/general.py::command_help",
+      "telegram-bot/bot/cogs/general.py::command_ping",
+      "telegram-bot/bot/cogs/general.py::command_start",
+      "telegram-bot/bot/cogs/info.py::command_botinfo",
+      "telegram-bot/bot/cogs/info.py::handle_botinfo_callback",
+      "telegram-bot/bot/cogs/moderation.py::command_ban",
+      "telegram-bot/bot/cogs/moderation.py::command_unban"
+    ],
+    "menu_commands": [
+      "8ball",
+      "ban",
+      "botinfo",
+      "broadcast",
+      "cat",
+      "coin",
+      "dm",
+      "dog",
+      "fox",
+      "help",
+      "ping",
+      "randnum",
+      "rnum",
+      "roll",
+      "start",
+      "unban"
+    ],
+    "session_names": [
+      "HelloBotSession"
+    ]
+  }
+}
