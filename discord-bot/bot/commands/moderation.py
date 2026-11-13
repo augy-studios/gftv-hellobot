@@ -11,11 +11,25 @@ class Moderation(commands.Cog):
         """Keep a reference to the bot."""
         self.bot = bot
 
+    async def cog_app_command_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        """Answer a moderation command the caller isn't allowed to use, instead of failing silently."""
+        if isinstance(error, app_commands.NoPrivateMessage):
+            message = "❌ Moderation commands only work in a server."
+        elif isinstance(error, app_commands.MissingPermissions):
+            missing = ", ".join(permission.replace("_", " ") for permission in error.missing_permissions)
+            message = f"❌ You need the {missing} permission to use this command."
+        else:
+            return
+        if interaction.response.is_done():
+            await interaction.followup.send(message, ephemeral=True)
+        else:
+            await interaction.response.send_message(message, ephemeral=True)
+
     # --- User Moderation Commands ---
 
     @app_commands.command(name="kick", description="Kick a user.")
     @app_commands.describe(member="The user that you want to kick", reason="The reason for the kick")
-    @commands.has_permissions(kick_members=True)
+    @app_commands.checks.has_permissions(kick_members=True)
     async def kick(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason provided"):
         """Kick a member, unless it is the caller, the bot or the server owner."""
         
@@ -35,7 +49,7 @@ class Moderation(commands.Cog):
 
     @app_commands.command(name="ban", description="Ban a user.")
     @app_commands.describe(member="The user that you want to ban", reason="The reason for the ban")
-    @commands.has_permissions(ban_members=True)
+    @app_commands.checks.has_permissions(ban_members=True)
     async def ban(self, interaction: discord.Interaction, member: discord.Member, reason: str = "No reason provided"):
         """Ban a member, unless it is the caller, the bot or the server owner."""
         
@@ -55,7 +69,7 @@ class Moderation(commands.Cog):
 
     @app_commands.command(name="unban", description="Unban a user.")
     @app_commands.describe(user="The user that you want to unban", reason="The reason for the unban")
-    @commands.has_permissions(ban_members=True)
+    @app_commands.checks.has_permissions(ban_members=True)
     async def unban(self, interaction: discord.Interaction, user: discord.User, reason: str = "No reason provided"):
         """Unban a user who is currently banned."""
         
@@ -71,7 +85,7 @@ class Moderation(commands.Cog):
 
     @app_commands.command(name="mute", description="Mute a user.")
     @app_commands.describe(member="The user that you want to mute")
-    @commands.has_permissions(mute_members=True)
+    @app_commands.checks.has_permissions(mute_members=True)
     async def mute(self, interaction: discord.Interaction, member: discord.Member):
         """Server-mute a member in voice."""
         await member.edit(mute=True)        
@@ -80,7 +94,7 @@ class Moderation(commands.Cog):
 
     @app_commands.command(name="unmute", description="Unmute a user.")
     @app_commands.describe(member="The user that you want to unmute")
-    @commands.has_permissions(mute_members=True)
+    @app_commands.checks.has_permissions(mute_members=True)
     async def unmute(self, interaction: discord.Interaction, member: discord.Member):
         """Remove a member's server mute."""
         await member.edit(mute=False)
@@ -89,7 +103,7 @@ class Moderation(commands.Cog):
 
     @app_commands.command(name="deafen", description="Deafen a user.")
     @app_commands.describe(member="The user that you want to")
-    @commands.has_permissions(deafen_members=True)
+    @app_commands.checks.has_permissions(deafen_members=True)
     async def deafen(self, interaction: discord.Interaction, member: discord.Member):
         """Server-deafen a member in voice."""
         await member.edit(deafen=True)
@@ -98,7 +112,7 @@ class Moderation(commands.Cog):
 
     @app_commands.command(name="undeafen", description="Undeafen a user.")
     @app_commands.describe(member="The user that you want to undeafen")
-    @commands.has_permissions(deafen_members=True)
+    @app_commands.checks.has_permissions(deafen_members=True)
     async def undeafen(self, interaction: discord.Interaction, member: discord.Member):
         """Remove a member's server deafen."""
         await member.edit(deafen=False)
@@ -107,7 +121,7 @@ class Moderation(commands.Cog):
 
     @app_commands.command(name="timeout", description="Timeout a user.")
     @app_commands.describe(member="The user that you want to timeout", duration="The duration of the timeout in minutes")
-    @commands.has_permissions(moderate_members=True)
+    @app_commands.checks.has_permissions(moderate_members=True)
     async def timeout(self, interaction: discord.Interaction, member: discord.Member, duration: int):
         """Time a member out for a number of minutes, unless it is the caller, the bot or the server owner."""
         
@@ -127,7 +141,7 @@ class Moderation(commands.Cog):
 
     @app_commands.command(name="untimeout", description="Untimeout a user.")
     @app_commands.describe(member="The user that you want to untimeout")
-    @commands.has_permissions(moderate_members=True)
+    @app_commands.checks.has_permissions(moderate_members=True)
     async def untimeout(self, interaction: discord.Interaction, member: discord.Member):
         """End a member's timeout."""
         
@@ -141,7 +155,7 @@ class Moderation(commands.Cog):
 
     @app_commands.command(name="nickname", description="Change a user's nickname.")
     @app_commands.describe(member="The user that you want to change the nickname of", nickname="The new nickname")
-    @commands.has_permissions(manage_nicknames=True)
+    @app_commands.checks.has_permissions(manage_nicknames=True)
     async def nickname(self, interaction: discord.Interaction, member: discord.Member, nickname: str = None):
         """Change (or clear) a member's nickname."""
         await member.edit(nick=nickname)
@@ -152,7 +166,7 @@ class Moderation(commands.Cog):
 
     @app_commands.command(name="purge", description="Purge messages in a channel.")
     @app_commands.describe(amount="The amount of messages to purge", user="The user whose messages to purge (optional)", but_bot="Ignore messages sent by the bot (default: True)")
-    @commands.has_permissions(manage_messages=True)
+    @app_commands.checks.has_permissions(manage_messages=True)
     async def purge(self, interaction: discord.Interaction, amount: int, user: discord.Member = None, but_bot: bool = True):
         """Delete recent messages in this channel, optionally only those from one user."""
         def check(message):
@@ -172,7 +186,7 @@ class Moderation(commands.Cog):
     # --- Thread Moderation Commands ---
 
     @app_commands.command(name="thread", description="Thread Moderation Commands")
-    @commands.has_permissions(manage_threads=True)
+    @app_commands.checks.has_permissions(manage_threads=True)
     @app_commands.describe(options="The thread moderation setting to change", set="The value to set (if any)")
     @app_commands.choices(
         options=[
@@ -284,7 +298,7 @@ class Moderation(commands.Cog):
     # --- Channel Moderation Commands ---
 
     @app_commands.command(name="channel", description="Channel Moderation Commands")
-    @commands.has_permissions(manage_channels=True)
+    @app_commands.checks.has_permissions(manage_channels=True)
     @app_commands.describe(options="The channel moderation setting to change", set="The value to set (if any)")
     @app_commands.choices(
         options=[
@@ -432,7 +446,7 @@ class Moderation(commands.Cog):
     # --- Invite Moderation Commands ---
 
     @app_commands.command(name="invite", description="Invite Moderation Commands")
-    @commands.has_permissions(manage_guild=True)
+    @app_commands.checks.has_permissions(manage_guild=True)
     @app_commands.describe(options="The invite moderation setting to change", set="The value to set (if any)")
     @app_commands.choices(
         options=[
@@ -486,7 +500,7 @@ class Moderation(commands.Cog):
     # --- Creation Commands ---
 
     @app_commands.command(name="create_channel", description="Create a new channel.")
-    @commands.has_permissions(manage_channels=True)
+    @app_commands.checks.has_permissions(manage_channels=True)
     @app_commands.describe(type="The type of the new channel", name="The name of the new channel")
     @app_commands.choices(
         type=[
