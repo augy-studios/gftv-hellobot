@@ -112,14 +112,14 @@ def generate_waves_image(width, height, wave_amplitude, frequency, vertical_dist
         # Top boundary oscillates between y_start and y_start + wave_amplitude.
         # Builds one (x, y) point per pixel column, left to right.
         top_boundary = [
-            (x, y_start + wave_amplitude * ((math.sin(2 * math.pi * frequency * x / width) + 1) / 2))
-            for x in range(width + 1)
+            (column_x, y_start + wave_amplitude * ((math.sin(2 * math.pi * frequency * column_x / width) + 1) / 2))
+            for column_x in range(width + 1)
         ]
         # Bottom boundary oscillates between y_end - wave_amplitude and y_end.
         # Builds one (x, y) point per pixel column, right to left, so the polygon closes.
         bottom_boundary = [
-            (x, y_end - wave_amplitude * ((math.sin(2 * math.pi * frequency * x / width) + 1) / 2))
-            for x in range(width, -1, -1)
+            (column_x, y_end - wave_amplitude * ((math.sin(2 * math.pi * frequency * column_x / width) + 1) / 2))
+            for column_x in range(width, -1, -1)
         ]
         polygon = top_boundary + bottom_boundary
         draw.polygon(polygon, fill=row_color)
@@ -198,9 +198,9 @@ async def parse_dataset_string(interaction: discord.Interaction, dataset: str):
 def numeric_y_values(data_points):
     """Return every y value as a float, or None if any y value isn't a number."""
     y_values = []
-    for (x, y) in data_points:
+    for (_, y_value) in data_points:
         try:
-            y_values.append(float(y))
+            y_values.append(float(y_value))
         except ValueError:
             return None
     return y_values
@@ -312,10 +312,10 @@ class Generative(commands.Cog):
         if overlap:
             # Simply place dots at random positions (they might overlap)
             for _ in range(dot_count):
-                x = random.randint(0, width - dot_diameter)
-                y = random.randint(0, height - dot_diameter)
+                position_x = random.randint(0, width - dot_diameter)
+                position_y = random.randint(0, height - dot_diameter)
                 color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-                draw.ellipse((x, y, x + dot_diameter, y + dot_diameter), fill=color)
+                draw.ellipse((position_x, position_y, position_x + dot_diameter, position_y + dot_diameter), fill=color)
         else:
             # Attempt to place dots without overlapping
             placed_centers = []
@@ -323,10 +323,10 @@ class Generative(commands.Cog):
             attempts = 0
             max_attempts = dot_count * 100  # Prevent infinite loops if dots are too many
             while dots_placed < dot_count and attempts < max_attempts:
-                x = random.randint(0, width - dot_diameter)
-                y = random.randint(0, height - dot_diameter)
-                center_x = x + radius
-                center_y = y + radius
+                position_x = random.randint(0, width - dot_diameter)
+                position_y = random.randint(0, height - dot_diameter)
+                center_x = position_x + radius
+                center_y = position_y + radius
                 # A collision is a dot already placed less than one diameter away.
                 collision = False
                 for (placed_x, placed_y) in placed_centers:
@@ -337,7 +337,7 @@ class Generative(commands.Cog):
                 if not collision:
                     placed_centers.append((center_x, center_y))
                     color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
-                    draw.ellipse((x, y, x + dot_diameter, y + dot_diameter), fill=color)
+                    draw.ellipse((position_x, position_y, position_x + dot_diameter, position_y + dot_diameter), fill=color)
                     dots_placed += 1
                 attempts += 1
 

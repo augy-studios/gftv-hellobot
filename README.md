@@ -17,18 +17,14 @@ in to Discord or Telegram.
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install ruff
-iconv -f UTF-16 -t UTF-8 discord-bot/requirements.txt > /tmp/discord-req.txt
-.venv/bin/pip install -r /tmp/discord-req.txt
-iconv -f UTF-16 -t UTF-8 telegram-bot/requirements.txt > /tmp/telegram-req.txt   # the import check loads the Telegram cogs too
-.venv/bin/pip install -r /tmp/telegram-req.txt
+.venv/bin/pip install -r discord-bot/requirements.txt
+.venv/bin/pip install -r telegram-bot/requirements.txt   # separately: the import check loads the Telegram cogs too
 tools/check_all.sh
 ```
 
 - `tools/check_all.sh` runs, in order: a compile check, ruff, an import check of every cog with
   the network blocked, the protected-names check, and the unit tests. It stops at the first
   failure.
-- The `requirements.txt` files are UTF-16 for now, hence `iconv`; help desk #19's final job
-  converts them to UTF-8.
 - **Protected names** (`tests/protected-names.json`) are the names and text users and Discord
   see: slash commands and their descriptions, options with their help text, choices (name and
   value) and which options autocomplete, button ids, Telegram commands, and hooks, recorded as
@@ -37,3 +33,16 @@ tools/check_all.sh
 - The check reads env keys only from literal `os.getenv("KEY")` calls, so keep them literal.
 - **The ruff baseline** is in `tests/ruff-baseline.txt` (15 today). Lower it as findings are
   fixed; the check fails if the count goes up.
+
+## Code style
+
+- Names are whole words in snake_case (`user_message`, `letter_index`), not short forms (`w`,
+  `cnt`, `i`, `e`). A bare `_` is fine for a throwaway value.
+- Every function and method has a docstring. Big functions (about 40 lines or more) also have a
+  comment above each main step.
+- Slash command callbacks keep a one-line docstring, because discord.py reads it.
+- No one-line `a if b else c`: write a full `if` / `else`. No `lambda`: use a named function.
+  Simple comprehensions are fine, with a comment saying what they build.
+- Never change a command name, option name, `custom_id` or the Telegram session name
+  `HelloBotSession` while tidying. `tools/check_protected_names.py --check` catches this.
+- Run `tools/check_all.sh` before merging.
