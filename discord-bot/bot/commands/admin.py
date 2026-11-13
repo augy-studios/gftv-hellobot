@@ -19,8 +19,16 @@ from discord.ext import commands
 from discord import app_commands
 from core.logger import log_action
 
+def is_bot_owner(interaction: discord.Interaction) -> bool:
+    """Check for the /dev commands: true only for the bot owner."""
+    return interaction.user.id == BOT_OWNER_ID
+
+
 class EvalPager(discord.ui.View):
+    """Pages through long /dev eval output with Previous and Next buttons."""
+
     def __init__(self, pages):
+        """Create the navigation buttons for the given pages."""
         super().__init__(timeout=300)
         self.pages = pages
         self.index = 0
@@ -38,6 +46,7 @@ class EvalPager(discord.ui.View):
         self.add_item(self.next_button)
 
     async def prev_callback(self, interaction: discord.Interaction):
+        """Show the previous page of output."""
         self.index -= 1
         self._update_buttons()
         await interaction.response.edit_message(
@@ -45,6 +54,7 @@ class EvalPager(discord.ui.View):
         )
 
     async def next_callback(self, interaction: discord.Interaction):
+        """Show the next page of output."""
         self.index += 1
         self._update_buttons()
         await interaction.response.edit_message(
@@ -52,12 +62,16 @@ class EvalPager(discord.ui.View):
         )
 
     def _update_buttons(self):
+        """Disable the buttons at either end and refresh the page label."""
         self.prev_button.disabled = (self.index == 0)
         self.next_button.disabled = (self.index == self.total - 1)
         self.page_button.label = f"{self.index+1}/{self.total}"
 
 class SessionsPager(discord.ui.View):
+    """Pages through the session data with Previous and Next buttons."""
+
     def __init__(self, pages):
+        """Create the navigation buttons for the given pages."""
         super().__init__(timeout=300)
         self.pages = pages
         self.index = 0
@@ -78,21 +92,25 @@ class SessionsPager(discord.ui.View):
         self.add_item(self.next_button)
 
     def _update_buttons(self):
+        """Disable the buttons at either end and refresh the page label."""
         self.prev_button.disabled = (self.index == 0)
         self.next_button.disabled = (self.index == self.total - 1)
         self.page_button.label = f"{self.index+1}/{self.total}"
 
     async def prev_callback(self, interaction: discord.Interaction):
+        """Show the previous page of sessions."""
         self.index -= 1
         self._update_buttons()
         await interaction.response.edit_message(embed=self._make_embed(), view=self)
 
     async def next_callback(self, interaction: discord.Interaction):
+        """Show the next page of sessions."""
         self.index += 1
         self._update_buttons()
         await interaction.response.edit_message(embed=self._make_embed(), view=self)
 
     def _make_embed(self) -> discord.Embed:
+        """Build the embed for the current page of sessions."""
         embed = discord.Embed(title="Session Data", color=discord.Color.random())
         chunk = self.pages[self.index]
         for session in chunk:
@@ -105,7 +123,10 @@ class SessionsPager(discord.ui.View):
         return embed
 
 class Admin(commands.Cog):
+    """Owner-only /dev commands: restart, stats, reload, sync, eval and sessions."""
+
     def __init__(self, bot: commands.Bot):
+        """Keep a reference to the bot."""
         self.bot = bot
 
     dev = app_commands.Group(
@@ -117,9 +138,9 @@ class Admin(commands.Cog):
         name="restart",
         description="Restart the bot (owner only)"
     )
-    @app_commands.check(lambda inter: inter.user.id == BOT_OWNER_ID)
+    @app_commands.check(is_bot_owner)
     async def restart(self, interaction: discord.Interaction):
-        """Usage: /dev restart"""
+        """Close the bot and start it again. Usage: /dev restart"""
         await interaction.response.send_message("🔄 Restarting…", ephemeral=True)
         await self.bot.close()
         os.execv(sys.executable, [sys.executable, "-m", "main"])
@@ -127,6 +148,7 @@ class Admin(commands.Cog):
 
     @restart.error
     async def restart_error(self, interaction: discord.Interaction, error: app_commands.AppCommandError):
+        """Tell non-owners they may not restart the bot."""
         if isinstance(error, app_commands.CheckFailure):
             await interaction.response.send_message(
                 "❌ You don't have permissions to run this.", ephemeral=True
@@ -136,19 +158,22 @@ class Admin(commands.Cog):
         name="stats",
         description="Show process stats (CPU%, memory usage, event loop lag)"
     )
-    @app_commands.check(lambda inter: inter.user.id == BOT_OWNER_ID)
+    @app_commands.check(is_bot_owner)
     async def stats(self, interaction: discord.Interaction):
-        """Usage: /dev stats"""
-        proc = psutil.Process(os.getpid())
-        cpu = proc.cpu_percent(interval=0.1)
-        mem = proc.memory_info().rss / 1024**2  # MB
+        """Show CPU, memory and event loop lag. Usage: /dev stats"""
+        # Measure this process's CPU and memory use
+        process = psutil.Process(os.getpid())
+        cpu_percent = process.cpu_percent(interval=0.1)
+        memory_usage = process.memory_info().rss / 1024**2  # MB
+        # Measure how long the event loop takes to come back after a yield
         loop = asyncio.get_running_loop()
-        start = loop.time()
+        start_time = loop.time()
         await asyncio.sleep(0)
-        lag_ms = (loop.time() - start) * 1000
+        lag_ms = (loop.time() - start_time) * 1000
+        # Report the numbers
         embed = discord.Embed(title="Bot Statistics", color=discord.Color.blurple())
-        embed.add_field(name="CPU Usage", value=f"{cpu:.2f}%", inline=True)
-        embed.add_field(name="Memory Usage", value=f"{mem:.2f} MB", inline=True)
+        embed.add_field(name="CPU Usage", value=f"{cpu_percent:.2f}%", inline=True)
+        embed.add_field(name="Memory Usage", value=f"{memory_usage:.2f} MB", inline=True)
         embed.add_field(name="Event Loop Lag", value=f"{lag_ms:.2f} ms", inline=True)
         await interaction.response.send_message(embed=embed, ephemeral=True)
         await log_action(self.bot, interaction)
@@ -158,31 +183,33 @@ class Admin(commands.Cog):
         description="Reload one or all Cogs"
     )
     @app_commands.describe(cog_name="Name of the cog to reload, or 'all' for every extension")
-    @app_commands.check(lambda inter: inter.user.id == BOT_OWNER_ID)
+    @app_commands.check(is_bot_owner)
     async def reload(self, interaction: discord.Interaction, cog_name: str):
-        """Usage: /dev reload <cog_name|all>"""
+        """Reload one cog or all of them. Usage: /dev reload <cog_name|all>"""
         reloaded = []
         errors = []
+        # Reload every loaded extension, or just the named one
         if cog_name.lower() == 'all':
-            for ext in list(self.bot.extensions):
+            for extension in list(self.bot.extensions):
                 try:
-                    await self.bot.reload_extension(ext)
-                    reloaded.append(ext)
-                except Exception as e:
-                    errors.append(f"{ext}: {e}")
+                    await self.bot.reload_extension(extension)
+                    reloaded.append(extension)
+                except Exception as error:
+                    errors.append(f"{extension}: {error}")
         else:
-            ext = f"bot.commands.{cog_name}"
+            extension = f"bot.commands.{cog_name}"
             try:
-                await self.bot.reload_extension(ext)
-                reloaded.append(ext)
-            except Exception as e:
-                errors.append(f"{ext}: {e}")
-        msg = []
+                await self.bot.reload_extension(extension)
+                reloaded.append(extension)
+            except Exception as error:
+                errors.append(f"{extension}: {error}")
+        # Report what was reloaded and what failed
+        message_lines = []
         if reloaded:
-            msg.append(f"✅ Reloaded: {', '.join(reloaded)}")
+            message_lines.append(f"✅ Reloaded: {', '.join(reloaded)}")
         if errors:
-            msg.append(f"❌ Errors: {'; '.join(errors)}")
-        await interaction.response.send_message("\n".join(msg), ephemeral=True)
+            message_lines.append(f"❌ Errors: {'; '.join(errors)}")
+        await interaction.response.send_message("\n".join(message_lines), ephemeral=True)
         await log_action(self.bot, interaction)
 
     @dev.command(
@@ -190,16 +217,17 @@ class Admin(commands.Cog):
         description="Force a slash-command sync (global or to a specific guild ID)"
     )
     @app_commands.describe(guild_id="Optional guild ID for guild-specific sync")
-    @app_commands.check(lambda inter: inter.user.id == BOT_OWNER_ID)
+    @app_commands.check(is_bot_owner)
     async def sync(self, interaction: discord.Interaction, guild_id: int = None):
-        """Usage: /dev sync [guild_id]"""
+        """Sync slash commands. Usage: /dev sync [guild_id]"""
+        # Sync to one guild, or globally
         if guild_id:
             await self.bot.tree.sync(guild=discord.Object(id=guild_id))
-            msg = f"🔄 Synced commands to guild `{guild_id}`."
+            message = f"🔄 Synced commands to guild `{guild_id}`."
         else:
             await self.bot.tree.sync()
-            msg = "🔄 Synced commands globally."
-        await interaction.response.send_message(msg, ephemeral=True)
+            message = "🔄 Synced commands globally."
+        await interaction.response.send_message(message, ephemeral=True)
         await log_action(self.bot, interaction)
 
     @dev.command(
@@ -207,10 +235,10 @@ class Admin(commands.Cog):
         description="Safely evaluate a short Python snippet"
     )
     @app_commands.describe(code="Python code to evaluate")
-    @app_commands.check(lambda inter: inter.user.id == BOT_OWNER_ID)
+    @app_commands.check(is_bot_owner)
     async def _eval(self, interaction: discord.Interaction, code: str):
-        """Usage: /dev eval <code>"""
-        # Define a small whitelist of builtins
+        """Evaluate a Python snippet with a small whitelist of builtins. Usage: /dev eval <code>"""
+        # Step 1: define a small whitelist of builtins
         safe_builtins = {
             'len': len, 'min': min, 'max': max, 'sum': sum,
             'any': any, 'all': all, 'list': list, 'dict': dict,
@@ -221,29 +249,32 @@ class Admin(commands.Cog):
             'psutil': psutil, 'time': time, 'random': random, 'json': json, 'datetime': datetime,
             're': re, 'requests': requests, 'BeautifulSoup': BeautifulSoup, 'lxml': lxml,
         }
-        # Prepare environment
-        env = {'bot': self.bot, 'discord': discord, 'commands': commands}
-        env.update(safe_builtins)
+        # Step 2: prepare environment
+        environment = {'bot': self.bot, 'discord': discord, 'commands': commands}
+        environment.update(safe_builtins)
 
+        # Step 3: run it as one expression, falling back to a block of statements
         body = code.strip('` ')
         try:
             # Try single expression
-            result = eval(body, {'__builtins__': {}}, env)
+            result = eval(body, {'__builtins__': {}}, environment)
         except SyntaxError:
             # Try block execution
-            exec_env = env.copy()
+            exec_environment = environment.copy()
             try:
-                exec(body, {'__builtins__': {}}, exec_env)
-                result = exec_env
-            except Exception as e:
-                return await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
-        except Exception as e:
-            return await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
+                exec(body, {'__builtins__': {}}, exec_environment)
+                result = exec_environment
+            except Exception as error:
+                return await interaction.response.send_message(f"❌ Error: {error}", ephemeral=True)
+        except Exception as error:
+            return await interaction.response.send_message(f"❌ Error: {error}", ephemeral=True)
 
+        # Step 4: send the output
         output = str(result)
         # If output is long, split into pages with buttons
         if len(output) > 1024:
-            pages = [output[i:i+1024] for i in range(0, len(output), 1024)]
+            # Cut the output into 1024-character pages
+            pages = [output[start:start + 1024] for start in range(0, len(output), 1024)]
             view = EvalPager(pages)
             await interaction.response.send_message(f"```py\n{pages[0]}\n```", view=view, ephemeral=True)
         else:
@@ -255,38 +286,41 @@ class Admin(commands.Cog):
         name="sessions",
         description="Display session data from sessions.csv"
     )
-    @app_commands.check(lambda inter: inter.user.id == BOT_OWNER_ID)
+    @app_commands.check(is_bot_owner)
     async def sessions(self, interaction: discord.Interaction):
-        """Usage: /dev sessions"""
+        """Show the rows of sessions.csv in pages. Usage: /dev sessions"""
         try:
-            # load all sessions
+            # Step 1: load all sessions
             sessions = []
             with open("sessions.csv", "r", encoding="utf-8") as csvfile:
                 reader = csv.DictReader(csvfile)
                 for row in reader:
-                    ts = int(datetime.fromisoformat(row["datetime_now"]).timestamp())
+                    timestamp_seconds = int(datetime.fromisoformat(row["datetime_now"]).timestamp())
                     sessions.append({
                         "id": row["id"],
                         "session_id": row["session_id"],
-                        "timestamp": f"<t:{ts}:F>"
+                        "timestamp": f"<t:{timestamp_seconds}:F>"
                     })
 
             if not sessions:
                 return await interaction.response.send_message("No session data found.", ephemeral=True)
 
-            # chunk into pages of 25
-            chunks = [sessions[i:i+25] for i in range(0, len(sessions), 25)]
+            # Step 2: chunk into pages of 25
+            # Build one list of up to 25 sessions per page
+            chunks = [sessions[start:start + 25] for start in range(0, len(sessions), 25)]
+            # Step 3: send the first page with its buttons
             pager = SessionsPager(chunks)
             first_embed = pager._make_embed()
 
             await interaction.response.send_message(embed=first_embed, view=pager, ephemeral=True)
         except FileNotFoundError:
             await interaction.response.send_message("❌ `sessions.csv` file not found.", ephemeral=True)
-        except Exception as e:
-            await interaction.response.send_message(f"❌ Error: {e}", ephemeral=True)
+        except Exception as error:
+            await interaction.response.send_message(f"❌ Error: {error}", ephemeral=True)
         await log_action(self.bot, interaction)
 
 async def setup(bot: commands.Bot):
+    """Load the Admin cog into the two guilds it serves."""
     guild1 = discord.Object(id=LOG_GUILD_ID)
     guild2 = discord.Object(id=576590416296542249)
     await bot.add_cog(Admin(bot), guilds=[guild1, guild2])
