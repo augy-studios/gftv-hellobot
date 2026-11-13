@@ -11,33 +11,38 @@ async def command_ban(event, client):
     Bans a user from the group. The user executing this command must have admin permissions.
     """
 
+    # Step 1: only admins may use this command.
     if not await check_admin_rights(event, client):
         bot_reply = "You don't have permission to use this command."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
         return
 
-    # Parse command arguments
-    args = event.raw_text.split(' ', 2)
-    if len(args) < 2:
+    # Step 2: parse command arguments
+    command_arguments = event.raw_text.split(' ', 2)
+    if len(command_arguments) < 2:
         bot_reply = "Invalid syntax. Use /ban <username|user_id> [reason]."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
         return
 
-    target_user = args[1]
-    reason = args[2] if len(args) == 3 else "No reason provided."
+    target_user = command_arguments[1]
+    if len(command_arguments) == 3:
+        reason = command_arguments[2]
+    else:
+        reason = "No reason provided."
 
+    # Step 3: resolve the target user and change their ban status, replying with the outcome.
     try:
         # Resolve target user
         target = await client.get_input_entity(target_user)
 
         # Ban the user
-        rights = ChatBannedRights(
+        banned_rights = ChatBannedRights(
             until_date=None,  # Permanent ban
             view_messages=True  # Disable access to messages
         )
-        await client(EditBannedRequest(event.chat_id, target, rights))
+        await client(EditBannedRequest(event.chat_id, target, banned_rights))
         bot_reply = f"User {target_user} has been banned.\nReason: {reason}"
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
@@ -54,8 +59,8 @@ async def command_ban(event, client):
         bot_reply = "I cannot perform this action because I don't have permission to write in this chat."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
-    except Exception as e:
-        bot_reply = f"An error occurred: {e}"
+    except Exception as error:
+        bot_reply = f"An error occurred: {error}"
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
 
@@ -65,32 +70,34 @@ async def command_unban(event, client):
     Unbans a user from the group. The user executing this command must have admin permissions.
     """
 
+    # Step 1: only admins may use this command.
     if not await check_admin_rights(event, client):
         bot_reply = "You don't have permission to use this command."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
         return
 
-    # Parse command arguments
-    args = event.raw_text.split(' ', 1)
-    if len(args) < 2:
+    # Step 2: parse command arguments
+    command_arguments = event.raw_text.split(' ', 1)
+    if len(command_arguments) < 2:
         bot_reply = "Invalid syntax. Use /unban <username|user_id>."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
         return
 
-    target_user = args[1]
+    target_user = command_arguments[1]
 
+    # Step 3: resolve the target user and change their ban status, replying with the outcome.
     try:
         # Resolve target user
         target = await client.get_input_entity(target_user)
 
         # Remove ban (reset rights)
-        rights = ChatBannedRights(
+        banned_rights = ChatBannedRights(
             until_date=None,
             view_messages=False  # Allow viewing messages again (unban)
         )
-        await client(EditBannedRequest(event.chat_id, target, rights))
+        await client(EditBannedRequest(event.chat_id, target, banned_rights))
         bot_reply = f"User {target_user} has been unbanned."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
@@ -107,8 +114,8 @@ async def command_unban(event, client):
         bot_reply = "I cannot perform this action because I don't have permission to write in this chat."
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
-    except Exception as e:
-        bot_reply = f"An error occurred: {e}"
+    except Exception as error:
+        bot_reply = f"An error occurred: {error}"
         await event.reply(bot_reply)
         await log_event(event, client, LOG_CHANNEL_ID, bot_reply=bot_reply)
 

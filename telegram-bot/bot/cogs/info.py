@@ -10,6 +10,7 @@ async def command_botinfo(event, client):
     /botinfo
     Displays general bot information.
     """
+    # Step 1: log the command, then collect the bot's details.
     await log_event(event, client, LOG_CHANNEL_ID)
 
     bot_entity = await client.get_me()
@@ -20,6 +21,7 @@ async def command_botinfo(event, client):
     groups = await count_lines("groups.txt")
     channels = await count_lines("channels.txt")
 
+    # Step 2: build the info message.
     info_text = (
         f"🤖 **Bot Information**\n"
         f"**Bot Name:** {bot_entity.first_name}\n"
@@ -30,6 +32,7 @@ async def command_botinfo(event, client):
         f"**Channels Joined:** {channels}\n"
     )
 
+    # Step 3: the owner also gets buttons that list users, channels and groups.
     if event.sender_id == BOT_OWNER_ID:
         buttons = [
             [Button.inline("List Known Users", b"list_users")],
@@ -64,9 +67,12 @@ async def get_list(file_name, empty_message):
     Reads a file and returns its contents as a formatted list.
     """
     try:
-        with open(file_name, "r") as f:
-            lines = [line.strip() for line in f if line.strip()]
-            return "\n".join(lines) if lines else empty_message
+        with open(file_name, "r") as list_file:
+            # Build the list of non-empty lines, stripped of whitespace.
+            lines = [line.strip() for line in list_file if line.strip()]
+            if lines:
+                return "\n".join(lines)
+            return empty_message
     except FileNotFoundError:
         return empty_message
 
@@ -75,7 +81,8 @@ async def count_lines(file_name):
     Count the number of lines in a file.
     """
     try:
-        with open(file_name, "r") as f:
-            return sum(1 for _ in f)
+        with open(file_name, "r") as count_file:
+            # Count one for every line in the file.
+            return sum(1 for _ in count_file)
     except FileNotFoundError:
         return 0
